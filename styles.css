@@ -880,8 +880,9 @@ body[data-grid-size="7"] .cell {
 .cell .portrait {
   width: var(--person-size);
   height: var(--person-size);
-  max-width: 90%;
-  max-height: 90%;
+  flex-shrink: 0;
+  max-width: none;
+  max-height: none;
   z-index: 2;
 }
 .cell .seal {

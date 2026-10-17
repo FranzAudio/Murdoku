@@ -142,7 +142,7 @@ const { chromium } = require("playwright"),
         assert.equal(b.width, badgeSizes[width][n - 5]);
         assert.equal(b.height, b.width);
         assert.equal(s.width, sealSizes[width][n - 5]);
-        assert.ok(p.width <= portraitSizes[width][n - 5]);
+        assert.equal(p.width, portraitSizes[width][n - 5]);
         for (const el of [b, s, p])
           assert.ok(
             el.left >= c.left &&
