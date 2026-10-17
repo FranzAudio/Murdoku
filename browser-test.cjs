@@ -52,7 +52,7 @@ const assert = require("node:assert/strict");
   );
   await page.locator("#language").selectOption("en");
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
-  assert.equal(await page.locator("#check").textContent(), "Check Solution");
+  assert.equal((await page.locator("#check").innerText()).trim(), "Check Solution");
   // Solve through the actual keyboard and cell handlers, using engine answer only as test data.
   const solution = await page.evaluate(() => game.puzzle.solution);
   if ((await page.locator("#mark").getAttribute("aria-pressed")) === "true")
@@ -83,6 +83,11 @@ const assert = require("node:assert/strict");
   assert.equal(await page.evaluate(() => game.positions[0]), -1);
   await page.keyboard.press("Meta+z");
   assert.equal(await page.evaluate(() => game.positions[0]), solution[0]);
+  await page.setViewportSize({ width: 800, height: 1000 });
+  assert.ok(await page.locator("#board-panel").isVisible());
+  assert.ok(await page.locator("#dossier").isVisible());
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  await page.screenshot({path: "/tmp/murdoku-medium.png", fullPage: true});
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "/tmp/murdoku-mobile.png", fullPage: true });
   assert.ok(await page.locator("#board-panel").isVisible());
