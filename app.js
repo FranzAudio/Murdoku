@@ -106,6 +106,24 @@ function clueText(clue) {
     { room: clue.room, person: clue.a },
   );
 }
+// Clue numbers are a stable identity (DEC-011-1): assigned once from the full sorted
+// list, so filtering or marking never renumbers a row. The original puzzle index stays
+// the DOM identity in data-clue and the solver keeps talking in original indices.
+const CLUE_ORDER = ["room", "direction", "beside", "touch", "object", "count"];
+function clueRows() {
+  if (!game) return [];
+  const sorted = game.puzzle.clues
+    .map((clue, index) => ({ clue, index }))
+    .sort((a, b) => CLUE_ORDER.indexOf(a.clue.type) - CLUE_ORDER.indexOf(b.clue.type));
+  const width = Math.max(2, String(sorted.length).length);
+  return sorted.map((row, position) => ({
+    ...row,
+    number: String(position + 1).padStart(width, "0"),
+  }));
+}
+function clueNumber(index) {
+  return clueRows().find((row) => row.index === index)?.number ?? "";
+}
 function hintText(result = hintResult) {
   if (!result) return "";
   if (result.status !== "step")
@@ -118,7 +136,7 @@ function hintText(result = hintResult) {
       }[result.status]
     ];
   const step = result.step,
-    id = step.clueIndices[0] + 1,
+    id = clueNumber(step.clueIndices[0]),
     name = s().names[step.person];
   const consequence =
     step.after.length === 1
@@ -157,7 +175,7 @@ function renderHint() {
       })
     : "";
   $("hint-clue-link").textContent = isStep
-    ? format(s().hintShowClue, { id: hintResult.step.clueIndices[0] + 1 })
+    ? format(s().hintShowClue, { id: clueNumber(hintResult.step.clueIndices[0]) })
     : "";
   $("hint-text").textContent = hintText();
   $("hint-subtext").textContent = isStep
@@ -511,18 +529,7 @@ function renderClues() {
   $("clues").replaceChildren();
   let previous = "";
   if (!game) return;
-  const clues = game.puzzle.clues
-    .map((clue, index) => ({ clue, index }))
-    .sort(
-      (a, b) =>
-        ["room", "direction", "beside", "touch", "object", "count"].indexOf(
-          a.clue.type,
-        ) -
-        ["room", "direction", "beside", "touch", "object", "count"].indexOf(
-          b.clue.type,
-        ),
-    );
-  for (const { clue, index } of clues) {
+  for (const { clue, index, number: displayNumber } of clueRows()) {
     if (
       (filter === "room" && clue.type !== "room") ||
       (filter === "position" &&
@@ -550,9 +557,7 @@ function renderClues() {
     button.setAttribute("aria-label", t.resolved + ": " + clueText(clue));
     const number = document.createElement("span");
     number.className = "clue-number";
-    number.textContent =
-      (hintActive ? "💡 " : "") +
-      (resolved.has(index) ? "✓" : String(index + 1).padStart(2, "0"));
+    number.textContent = displayNumber;
     const text = document.createElement("span");
     text.textContent = clueText(clue);
     button.append(number);

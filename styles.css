@@ -415,9 +415,16 @@ select {
   padding: 12px;
 }
 .clue-number {
-  flex-shrink: 0;
+  flex: 0 0 24px;
+  width: 24px;
+  text-align: right;
+  white-space: nowrap;
+  user-select: none;
   color: var(--color-gold);
-  font: 12px monospace;
+  font: 12px/20px monospace;
+  /* After the font shorthand, which resets both of these to normal. */
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
   padding-top: 3px;
 }
 .clue[aria-pressed="true"] {
