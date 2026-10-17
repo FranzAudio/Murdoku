@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="it">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -16,7 +16,7 @@
       <div class="brand">
         <span class="manor" aria-hidden="true">♜</span>
         <div>
-          <p class="eyebrow">BLACKWOOD MANOR · EST. 1886</p>
+          <p id="manor-tagline" class="eyebrow">BLACKWOOD MANOR · EST. 1886</p>
           <h1>Murdoku</h1>
           <p id="subtitle"></p>
         </div>
@@ -57,10 +57,12 @@
           </button>
         </div>
         <label class="language"
-          ><span id="language-label">Lingua</span
-          ><select id="language" aria-label="Lingua / Language">
+          ><span id="language-label">Language</span
+          ><select id="language" aria-label="Language">
+            <option value="en" selected>English</option>
+            <option value="es">Español</option>
+            <option value="ca">Català</option>
             <option value="it">Italiano</option>
-            <option value="en">English</option>
           </select></label
         >
       </div>
@@ -196,8 +198,6 @@
         ><button id="modal-close"></button>
       </div>
     </dialog>
-    <noscript
-      >Attiva JavaScript per giocare. Enable JavaScript to play.</noscript
-    >
+    <noscript>Enable JavaScript to play.</noscript>
   </body>
 </html>

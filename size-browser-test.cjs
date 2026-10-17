@@ -14,6 +14,7 @@ const { chromium } = require("playwright"),
       errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(process.env.TEST_URL || "http://localhost:8000");
+    await page.locator("#language").selectOption("it");
     assert.equal(
       await page.locator('[data-size="6"]').getAttribute("aria-checked"),
       "true",

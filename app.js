@@ -12,7 +12,7 @@ const textures = [
   "kitchen",
   "cellar",
 ];
-let locale = "it",
+let locale = "en",
   game = null,
   selected = 0,
   marking = false,
@@ -26,10 +26,19 @@ let locale = "it",
   pendingSize = null,
   hintResult = null,
   hintDismissed = false,
-  generationFailed = false;
-const s = () => window.MurdokuStrings[locale];
-function format(text, values) {
-  return text.replace(/\{(\w+)\}/g, (_, key) => values[key]);
+  generationFailed = false,
+  feedbackState = null,
+  victorySummary = null;
+const s = () => window.MurdokuI18n.locale(locale);
+const format = window.MurdokuI18n.format;
+function setFeedback(key = null, values = {}) {
+  feedbackState = key ? { key, values } : null;
+  renderFeedback();
+}
+function renderFeedback() {
+  $("feedback").textContent = feedbackState
+    ? format(s()[feedbackState.key], feedbackState.values)
+    : "";
 }
 function coord(cell) {
   return String.fromCharCode(65 + E.row(cell, size)) + (E.col(cell, size) + 1);
@@ -51,11 +60,16 @@ function portrait(person) {
 function clueText(clue) {
   if (clue.type === "object") {
     const object = game.puzzle.objects.find((o) => o.id === clue.object);
-    return format(s().objectClues[clue.relation], {
-      name: s().names[clue.a],
-      object: s().objectNames[object.type],
-      on: s().objectOn[object.type],
-    });
+    return window.MurdokuI18n.formatClue(
+      s().objectClues[clue.relation],
+      {
+        name: s().names[clue.a],
+        object: s().objectNames[object.type],
+        on: s().objectOn[object.type],
+      },
+      locale,
+      { person: clue.a, object: object.type },
+    );
   }
   const t = s(),
     values = {
@@ -65,7 +79,7 @@ function clueText(clue) {
       direction: t[clue.axis],
       count: clue.count,
     };
-  return format(
+  return window.MurdokuI18n.formatClue(
     t[
       clue.type === "direction"
         ? "directionClue"
@@ -74,6 +88,8 @@ function clueText(clue) {
           : clue.type + "Clue"
     ],
     values,
+    locale,
+    { room: clue.room, person: clue.a },
   );
 }
 function hintText(result = hintResult) {
@@ -527,12 +543,18 @@ function updateControls() {
 function render() {
   const t = s();
   document.documentElement.lang = locale;
+  $("language").value = locale;
+  $("language").setAttribute("aria-label", s().language);
+  $("toolbar").setAttribute("aria-label", s().controlsAria);
+  document.querySelector(".view-tabs").setAttribute("aria-label", s().viewAria);
+  $("tray").setAttribute("aria-label", format(s().tray, { total: size }));
   document.documentElement.style.setProperty("--grid-size", size);
   document.documentElement.style.setProperty("--person-count", size);
   document.body.dataset.gridSize = size;
   document.title = "Murdoku · " + t.subtitle;
   for (const [id, key] of Object.entries({
     subtitle: "subtitle",
+    "manor-tagline": "manorTagline",
     "language-label": "language",
     "welcome-title": "welcomeTitle",
     "welcome-text": "welcome",
@@ -573,6 +595,8 @@ function render() {
   renderLegend();
   updateControls();
   renderHint();
+  renderFeedback();
+  renderModalCopy();
 }
 function announceConflicts() {
   const t = s(),
@@ -589,7 +613,7 @@ function action(cell, mark = marking, clear = false) {
   if (game.act(cell, selected, mark, clear)) {
     clearHintView();
     located = -1;
-    $("feedback").textContent = "";
+    setFeedback();
     announceConflicts();
     renderBoard(cell);
     renderTray();
@@ -645,7 +669,7 @@ function newCase(nextSize = size) {
       filter = "all";
       located = -1;
       view = "board";
-      $("feedback").textContent = s().ready;
+      setFeedback("ready");
       $("conflicts").textContent = "";
       $("modal").close();
       modalKind = "";
@@ -697,7 +721,7 @@ $("undo").addEventListener("click", () => {
   if (game?.undo()) {
     clearHintView();
     located = -1;
-    $("feedback").textContent = "";
+    setFeedback();
     announceConflicts();
     render();
   }
@@ -715,7 +739,7 @@ $("confirm-reset").addEventListener("click", () => {
   clearHintView();
   located = -1;
   $("reset-confirm").hidden = true;
-  $("feedback").textContent = s().ready;
+  setFeedback("ready");
   $("conflicts").textContent = "";
   render();
   $("reset").focus();
@@ -762,7 +786,7 @@ $("hint-return").addEventListener("click", () => {
 });
 $("check").addEventListener("click", () => {
   const result = game.check();
-  $("feedback").textContent = format(s().checkResult, result);
+  setFeedback("checkResult", result);
   announceConflicts();
   if (result.solved) {
     const room = game.puzzle.rooms[game.positions[0]],
@@ -771,22 +795,70 @@ $("check").addEventListener("click", () => {
         String(Math.floor(seconds / 60)).padStart(2, "0") +
         ":" +
         String(seconds % 60).padStart(2, "0");
+    victorySummary = {
+      room,
+      murderer: result.murderer,
+      time,
+      moves: game.moves,
+    };
     showModal(
       "victory",
       s().solved,
-      format(s().murderer, {
-        name: s().names[result.murderer],
-        room: s().roomNames[room],
-      }),
+      window.MurdokuI18n.formatClue(
+        s().murderer,
+        {
+          name: s().names[result.murderer],
+          room: s().roomNames[room],
+        },
+        locale,
+        { room },
+      ),
       `${s().time}: ${time} · ${s().moves}: ${game.moves}`,
     );
   }
 });
+function renderModalCopy() {
+  if (!$("modal").open) return;
+  if (modalKind === "loading")
+    showModal(
+      "loading",
+      s().furnitureGenerating,
+      format(s().generating, { size }) + " " + s().verifying,
+    );
+  else if (modalKind === "size")
+    showModal("size", s().sizeLabel, s().sizeConfirm);
+  else if (modalKind === "error")
+    showModal("error", format(s().sizeError, { size }), s().furnitureError);
+  else if (modalKind === "victory" && victorySummary)
+    showModal(
+      "victory",
+      s().solved,
+      window.MurdokuI18n.formatClue(
+        s().murderer,
+        {
+          name: s().names[victorySummary.murderer],
+          room: s().roomNames[victorySummary.room],
+        },
+        locale,
+        { room: victorySummary.room },
+      ),
+      `${s().time}: ${victorySummary.time} · ${s().moves}: ${victorySummary.moves}`,
+    );
+}
 $("language").addEventListener("change", () => {
-  locale = $("language").value;
-  $("feedback").textContent = game ? s().ready : "";
-  render();
-  if (game) announceConflicts();
+  const previous = locale;
+  try {
+    locale = ["en", "es", "ca", "it"].includes($("language").value)
+      ? $("language").value
+      : "en";
+    render();
+    if (game) announceConflicts();
+  } catch (error) {
+    console.error(error);
+    locale = previous;
+    render();
+    setFeedback("languageFailure");
+  }
 });
 $("modal-primary").addEventListener("click", () => {
   $("modal").close();

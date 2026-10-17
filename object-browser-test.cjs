@@ -21,6 +21,7 @@ const { chromium } = require("playwright"),
     page.on("request", (r) => requests.push(r.url()));
     const url = process.env.TEST_URL || "http://localhost:8000";
     await page.goto(url);
+    await page.locator("#language").selectOption("it");
     assert.equal(
       await page.locator(".cell[data-object]").count(),
       0,

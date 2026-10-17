@@ -15,6 +15,7 @@ const assert = require("node:assert/strict");
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("request", (r) => requests.push(r.url()));
   await page.goto(process.env.TEST_URL || "http://localhost:8000");
+  await page.locator("#language").selectOption("it");
   await page.screenshot({ path: "/tmp/murdoku-empty.png", fullPage: true });
   assert.equal(await page.locator(".cell").count(), 36);
   assert.ok(await page.locator("#undo").isDisabled());
@@ -52,7 +53,10 @@ const assert = require("node:assert/strict");
   );
   await page.locator("#language").selectOption("en");
   assert.equal(await page.locator("html").getAttribute("lang"), "en");
-  assert.equal((await page.locator("#check").innerText()).trim(), "Check Solution");
+  assert.equal(
+    (await page.locator("#check").innerText()).trim(),
+    "Check Solution",
+  );
   // Solve through the actual keyboard and cell handlers, using engine answer only as test data.
   const solution = await page.evaluate(() => game.puzzle.solution);
   if ((await page.locator("#mark").getAttribute("aria-pressed")) === "true")
@@ -86,8 +90,12 @@ const assert = require("node:assert/strict");
   await page.setViewportSize({ width: 800, height: 1000 });
   assert.ok(await page.locator("#board-panel").isVisible());
   assert.ok(await page.locator("#dossier").isVisible());
-  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
-  await page.screenshot({path: "/tmp/murdoku-medium.png", fullPage: true});
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= innerWidth,
+    ),
+  );
+  await page.screenshot({ path: "/tmp/murdoku-medium.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: "/tmp/murdoku-mobile.png", fullPage: true });
   assert.ok(await page.locator("#board-panel").isVisible());
@@ -128,7 +136,9 @@ const assert = require("node:assert/strict");
   );
   // A generated room can introduce a new image URL over a real network.
   await page.waitForFunction(() =>
-    [...document.images].every(image => image.complete && image.naturalWidth > 0),
+    [...document.images].every(
+      (image) => image.complete && image.naturalWidth > 0,
+    ),
   );
   assert.ok(
     await page

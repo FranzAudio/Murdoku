@@ -1,6 +1,6 @@
 # Murdoku
 
-A static, client-side deduction game for stories 001, 004, 005 and 006. Open `index.html` directly, or run `python3 -m http.server 8000` in this directory and open http://localhost:8000. No install, build, backend, CDN, or external service is required. Italian is the default; choose English in the header.
+A static, client-side deduction game for stories 001, 003, 004, 005 and 006. Open `index.html` directly, or run `python3 -m http.server 8000` in this directory and open http://localhost:8000. No install, build, backend, CDN, or external service is required. English is the default; choose Español, Català or Italiano in the header.
 
 ## Verification
 
@@ -24,7 +24,7 @@ Select one of N people, then click a cell. Click an occupied cell to return its 
 
 ## Technical decisions and limits
 
-`strings.js` is the single bilingual strings table rather than a fetched JSON file, so direct-file offline use needs no browser fetch permission. Seeded generation is deterministic and replayable through `MurdokuEngine.generate(seed)`. The finite-domain verifier is the emission gate, not a claim about puzzle difficulty. Room, global-count and adjacency clues may be redundant. Difficulty levels, saving, hints and account features are outside the approved MVP. Timer and move count are in memory only.
+`strings.js` is the single multilingual strings table rather than a fetched JSON file, so direct-file offline use needs no browser fetch permission. Seeded generation is deterministic and replayable through `MurdokuEngine.generate(seed)`. The finite-domain verifier is the emission gate, not a claim about puzzle difficulty. Room, global-count and adjacency clues may be redundant. Difficulty levels, saving and account features are outside the approved MVP. Timer and move count are in memory only.
 
 The Designer owns `specs/ui/ui-001.md` and assets; the PM owns the story and final acceptance. This implementation does not record product acceptance.
 
@@ -71,3 +71,13 @@ The existing `propagate(puzzle).trace` now includes **both unary and arc-consist
 Run `node hint-test.cjs 100` to replay every reduction independently, verify clue references/support witnesses and chronology, forbid hidden-answer reads with a throwing getter, and assert non-mutation of placements, marks, history, moves, timer and puzzle. It covers every supported size plus empty/partial/solved/conflicted/X/undo/reset/reopen/exhausted/unavailable cases. `hint-browser-test.cjs` checks the actual toolbar, H/Escape, bilingual banner, clue navigation, mobile return, reduced motion, furniture coexistence, conflict guards and error/retry. It uses the optional Playwright setup documented above. Run the generator and three existing browser suites as regressions.
 
 `assets/icons/hint.png` is the Designer's bundled bitmap, reused unchanged. The new accent follows UI decision DEC-004-1. Hints are information only; no auto-apply feature or publication is included. Designer review and PM acceptance remain separate from engineering verification.
+
+## Four languages (story-003)
+
+English is the cold-load default. The selector offers English, Español, Català and Italiano, with Standard Central Catalan (IEC) per UI decision DEC-003-1. All 93 original dictionary keys plus supplemental accessibility labels are translated. The dictionaries cover all 139 English leaf strings, including nested furniture clues, size labels, character traits, room names and forward-deduction hints. Spanish and Catalan render gender and article alternatives from the UI copy table using the referenced person, fixture and room.
+
+`MurdokuI18n.locale(code)` merges each locale over English, including nested objects and array entries. Missing, null and blank strings fall back to English; an unknown locale uses English. `resolveString(path, code)` supports dotted paths and array indices. `format` preserves a readable placeholder if a parameter is unavailable. The table remains a local classic script with a Node export for tests, so direct-file use requires no fetch or build.
+
+Language changes update text, HTML language, accessible labels, active hints, check results and open dialogs. They retain the same case, puzzle, placements, X marks, undo history, moves, start time, scratched clues, selection, tool, hint cursor and proof. Victory dialogs retain their captured time and result. No locale preference is persisted, as persistence is outside the required scope.
+
+Run `node locale-test.cjs` to verify the 93 required keys, all English leaf paths and parameter sets in Spanish/Catalan, missing/null/blank nested fallback and grammatical contractions. Run `locale-browser-test.cjs` with the optional Playwright environment documented above. It checks English cold load, actual clue and hint rendering across 20 seeds per size per new language, exact state and reference preservation across all four languages, live nested fallback, check and modal translation, 5/6/7 boards at 1440/800/390/360px and direct-file offline use. The four earlier browser suites explicitly choose Italian for their original fixtures and remain regression checks. No required story-003 AC is deferred; PM acceptance remains separate.

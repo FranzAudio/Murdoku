@@ -1081,3 +1081,8 @@ body[data-grid-size="7"] .cell {
     animation: none !important;
   }
 }
+
+.language select {
+  min-width: 88px;
+  min-height: 44px;
+}
