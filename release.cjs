@@ -1,5 +1,5 @@
 /* Release source of truth. Edit VERSION, then run node release.cjs. No runtime build needed. */
-const VERSION = "1.2.0";
+const VERSION = "1.2.1";
 const fs = require("node:fs"),
   path = require("node:path");
 const root = __dirname,
