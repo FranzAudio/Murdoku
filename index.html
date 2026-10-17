@@ -21,13 +21,49 @@
           <p id="subtitle"></p>
         </div>
       </div>
-      <label class="language"
-        ><span id="language-label">Lingua</span
-        ><select id="language" aria-label="Lingua / Language">
-          <option value="it">Italiano</option>
-          <option value="en">English</option>
-        </select></label
-      >
+      <div class="header-controls">
+        <div
+          id="size-selector"
+          class="size-selector"
+          role="radiogroup"
+          aria-label="Dimensione griglia"
+        >
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-size="5"
+            tabindex="-1"
+          >
+            5×5
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked="true"
+            data-size="6"
+            tabindex="0"
+          >
+            6×6
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked="false"
+            data-size="7"
+            tabindex="-1"
+          >
+            7×7
+          </button>
+        </div>
+        <label class="language"
+          ><span id="language-label">Lingua</span
+          ><select id="language" aria-label="Lingua / Language">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+          </select></label
+        >
+      </div>
     </header>
     <main>
       <nav id="toolbar" class="toolbar" aria-label="Game controls">
@@ -96,6 +132,11 @@
           <div class="dossier-heading">
             <p class="eyebrow" id="dossier-label"></p>
             <h2 id="clues-title"></h2>
+            <button
+              id="toggle-dossier"
+              aria-expanded="true"
+              aria-controls="clues"
+            ></button>
           </div>
           <p id="rules" class="rules"></p>
           <div class="filters">

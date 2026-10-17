@@ -1,10 +1,10 @@
 /* Pure finite-domain puzzle engine. No DOM, network, or persistence. */
 (function (root) {
   "use strict";
-  const N = 6,
-    cells = Array.from({ length: 36 }, (_, i) => i);
-  const row = (x) => Math.floor(x / N),
-    col = (x) => x % N;
+  const SUPPORTED_SIZES = [5, 6, 7];
+  const row = (x, size = 6) => Math.floor(x / size),
+    col = (x, size = 6) => x % size;
+  const indices = (length) => Array.from({ length }, (_, i) => i);
   function rng(seed) {
     let s = seed >>> 0;
     return () => {
@@ -23,9 +23,11 @@
     }
     return a;
   }
-  function partition(random) {
-    const rects = [[0, 0, 6, 6]],
-      target = 4 + Math.floor(random() * 5);
+  function partition(random, N) {
+    const minimum = N - 1,
+      maximum = N === 5 ? 5 : N + 1;
+    const rects = [[0, 0, N, N]],
+      target = minimum + Math.floor(random() * (maximum - minimum + 1));
     while (rects.length < target) {
       const options = rects
         .map((q, i) => ({ q, i }))
@@ -41,15 +43,18 @@
         vertical ? [r, c + cut, h, w - cut] : [r + cut, c, h - cut, w],
       );
     }
-    const rooms = Array(36);
+    const rooms = Array(N * N);
     shuffle(rects, random).forEach(([r, c, h, w], id) => {
       for (let y = r; y < r + h; y++)
-        for (let x = c; x < c + w; x++) rooms[y * 6 + x] = id;
+        for (let x = c; x < c + w; x++) rooms[y * N + x] = id;
     });
     return rooms;
   }
   function nearRoom(cell, room, rooms, diagonal) {
-    return cells.some(
+    const N = Math.sqrt(rooms.length),
+      row = (x) => Math.floor(x / N),
+      col = (x) => x % N;
+    return indices(rooms.length).some(
       (x) =>
         rooms[x] === room &&
         (diagonal
@@ -64,12 +69,17 @@
       return nearRoom(cell, clue.room, rooms, clue.type === "touch");
     return true;
   }
-  function direction(a, b, axis) {
-    return axis === "north" ? row(a) < row(b) : col(a) < col(b);
+  function direction(a, b, axis, N) {
+    return axis === "north" ? row(a, N) < row(b, N) : col(a, N) < col(b, N);
   }
   function clueTrue(clue, positions, rooms) {
     if (clue.type === "direction")
-      return direction(positions[clue.a], positions[clue.b], clue.axis);
+      return direction(
+        positions[clue.a],
+        positions[clue.b],
+        clue.axis,
+        Math.sqrt(rooms.length),
+      );
     if (clue.type === "count")
       return (
         new Set(rooms).size - new Set(positions.map((x) => rooms[x])).size ===
@@ -78,17 +88,21 @@
     return unary(clue, positions[clue.a], rooms);
   }
   function valid(positions, rooms, clues = []) {
+    const N = Math.sqrt(rooms.length);
     return (
-      positions.length === 6 &&
-      positions.every((x) => Number.isInteger(x) && x >= 0 && x < 36) &&
-      new Set(positions.map(row)).size === 6 &&
-      new Set(positions.map(col)).size === 6 &&
+      SUPPORTED_SIZES.includes(N) &&
+      positions.length === N &&
+      positions.every((x) => Number.isInteger(x) && x >= 0 && x < N * N) &&
+      new Set(positions.map((x) => row(x, N))).size === N &&
+      new Set(positions.map((x) => col(x, N))).size === N &&
       positions.filter((x) => rooms[x] === rooms[positions[0]]).length === 2 &&
       clues.every((c) => clueTrue(c, positions, rooms))
     );
   }
   function initialDomains(puzzle) {
-    return Array.from({ length: 6 }, (_, a) =>
+    const N = puzzle.size ?? 6,
+      cells = indices(N * N);
+    return Array.from({ length: N }, (_, a) =>
       cells.filter((x) =>
         puzzle.clues.every(
           (c) =>
@@ -97,27 +111,28 @@
       ),
     );
   }
-  function compatible(a, x, b, y, clues) {
-    if (row(x) === row(y) || col(x) === col(y)) return false;
+  function compatible(a, x, b, y, clues, N) {
+    if (row(x, N) === row(y, N) || col(x, N) === col(y, N)) return false;
     return clues.every(
       (c) =>
         c.type !== "direction" ||
-        ((c.a !== a || c.b !== b || direction(x, y, c.axis)) &&
-          (c.a !== b || c.b !== a || direction(y, x, c.axis))),
+        ((c.a !== a || c.b !== b || direction(x, y, c.axis, N)) &&
+          (c.a !== b || c.b !== a || direction(y, x, c.axis, N))),
     );
   }
   // Arc consistency removes unsupported candidates. This loop never guesses or branches.
   function propagate(puzzle) {
+    const N = puzzle.size ?? 6;
     const domains = initialDomains(puzzle),
       trace = [];
     let changed = true;
     while (changed) {
       changed = false;
-      for (let a = 0; a < 6; a++)
-        for (let b = 0; b < 6; b++)
+      for (let a = 0; a < N; a++)
+        for (let b = 0; b < N; b++)
           if (a !== b) {
             const next = domains[a].filter((x) =>
-              domains[b].some((y) => compatible(a, x, b, y, puzzle.clues)),
+              domains[b].some((y) => compatible(a, x, b, y, puzzle.clues, N)),
             );
             if (next.length !== domains[a].length) {
               trace.push({
@@ -142,15 +157,16 @@
   }
   // Exhaustive assignment search independent of propagation. Stop only after limit solutions.
   function enumerate(puzzle, limit = 2) {
+    const N = puzzle.size ?? 6,
+      row = (x) => Math.floor(x / N),
+      col = (x) => x % N;
     const domains = initialDomains(puzzle),
-      order = [0, 1, 2, 3, 4, 5].sort(
-        (a, b) => domains[a].length - domains[b].length,
-      ),
-      positions = Array(6).fill(-1),
+      order = indices(N).sort((a, b) => domains[a].length - domains[b].length),
+      positions = Array(N).fill(-1),
       solutions = [];
     function visit(depth, rows, cols) {
       if (solutions.length >= limit) return;
-      if (depth === 6) {
+      if (depth === N) {
         if (valid(positions, puzzle.rooms, puzzle.clues))
           solutions.push([...positions]);
         return;
@@ -160,7 +176,7 @@
         if (rows & (1 << row(x)) || cols & (1 << col(x))) continue;
         if (
           !positions.every(
-            (y, b) => y < 0 || compatible(a, x, b, y, puzzle.clues),
+            (y, b) => y < 0 || compatible(a, x, b, y, puzzle.clues, N),
           )
         )
           continue;
@@ -187,12 +203,17 @@
       deductions: deductions.trace.length,
     };
   }
-  function generate(seed = Date.now() >>> 0, maxAttempts = 100) {
+  function generate(seed = Date.now() >>> 0, maxAttempts = 100, size = 6) {
+    if (!SUPPORTED_SIZES.includes(size))
+      throw new RangeError("UNSUPPORTED_SIZE");
+    const N = size,
+      row = (x) => Math.floor(x / N),
+      col = (x) => x % N;
     const random = rng(seed);
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const rooms = partition(random),
-        columns = shuffle([0, 1, 2, 3, 4, 5], random);
-      let solution = columns.map((c, r) => r * 6 + c);
+      const rooms = partition(random, N),
+        columns = shuffle(indices(N), random);
+      let solution = columns.map((c, r) => r * N + c);
       const pairs = solution.filter(
         (x) => solution.filter((y) => rooms[y] === rooms[x]).length === 2,
       );
@@ -211,17 +232,17 @@
         room: rooms[x],
       }));
       for (const axis of ["north", "west"]) {
-        const order = [0, 1, 2, 3, 4, 5].sort((a, b) =>
+        const order = indices(N).sort((a, b) =>
           axis === "north"
             ? row(solution[a]) - row(solution[b])
             : col(solution[a]) - col(solution[b]),
         );
-        for (let i = 0; i < 5; i++)
+        for (let i = 0; i < N - 1; i++)
           clues.push({ type: "direction", a: order[i], b: order[i + 1], axis });
       }
       for (const type of ["beside", "touch"]) {
         const choices = [];
-        for (let a = 0; a < 6; a++)
+        for (let a = 0; a < N; a++)
           for (const room of new Set(rooms))
             if (
               room !== rooms[solution[a]] &&
@@ -236,7 +257,7 @@
         count:
           new Set(rooms).size - new Set(solution.map((x) => rooms[x])).size,
       });
-      const puzzle = { seed: seed >>> 0, rooms, solution, clues };
+      const puzzle = { size, seed: seed >>> 0, rooms, solution, clues };
       // Keep room and vocabulary clues; remove redundant directional clues only when deduction still finishes.
       for (const clue of shuffle(
         clues.filter((c) => c.type === "direction"),

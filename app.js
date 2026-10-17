@@ -22,13 +22,15 @@ let locale = "it",
   loading = false,
   modalKind = "",
   view = "board",
-  located = -1;
+  located = -1,
+  size = 6,
+  pendingSize = null;
 const s = () => window.MurdokuStrings[locale];
 function format(text, values) {
   return text.replace(/\{(\w+)\}/g, (_, key) => values[key]);
 }
 function coord(cell) {
-  return String.fromCharCode(65 + E.row(cell)) + (E.col(cell) + 1);
+  return String.fromCharCode(65 + E.row(cell, size)) + (E.col(cell, size) + 1);
 }
 function image(path, alt = "", className = "") {
   const img = document.createElement("img");
@@ -68,6 +70,8 @@ function renderBoard(focusCell) {
   const board = $("board"),
     t = s();
   board.replaceChildren();
+  board.setAttribute("aria-rowcount", size);
+  board.setAttribute("aria-colcount", size);
   const header = document.createElement("div");
   header.className = "grid-row";
   header.setAttribute("role", "row");
@@ -76,14 +80,14 @@ function renderBoard(focusCell) {
   corner.className = "coord";
   header.append(corner);
   const conflicts = game ? game.conflicts() : { rows: [], cols: [] };
-  for (let c = 0; c < 6; c++) {
+  for (let c = 0; c < size; c++) {
     const label = document.createElement("span");
     label.className = "coord" + (conflicts.cols.includes(c) ? " warning" : "");
     label.textContent = c + 1;
     label.setAttribute("role", "columnheader");
     header.append(label);
   }
-  for (let r = 0; r < 6; r++) {
+  for (let r = 0; r < size; r++) {
     const gridRow = document.createElement("div");
     gridRow.className = "grid-row";
     gridRow.setAttribute("role", "row");
@@ -93,11 +97,12 @@ function renderBoard(focusCell) {
     label.textContent = String.fromCharCode(65 + r);
     label.setAttribute("role", "rowheader");
     gridRow.append(label);
-    for (let c = 0; c < 6; c++) {
-      const cell = r * 6 + c,
+    for (let c = 0; c < size; c++) {
+      const cell = r * size + c,
         room = game
           ? game.puzzle.rooms[cell]
-          : Math.floor(r / 2) * 2 + Math.floor(c / 3),
+          : Math.floor(r / Math.ceil(size / 2)) * 2 +
+            Math.floor(c / Math.ceil(size / 2)),
         person = game ? game.occupant(cell) : -1;
       const button = document.createElement("button");
       button.className = "cell";
@@ -109,10 +114,10 @@ function renderBoard(focusCell) {
       const rooms = game?.puzzle.rooms;
       if (rooms) {
         for (const [edge, neighbor, boundary] of [
-          ["Top", cell - 6, r === 0],
-          ["Bottom", cell + 6, r === 5],
+          ["Top", cell - size, r === 0],
+          ["Bottom", cell + size, r === size - 1],
           ["Left", cell - 1, c === 0],
-          ["Right", cell + 1, c === 5],
+          ["Right", cell + 1, c === size - 1],
         ])
           if (boundary || rooms[neighbor] !== room)
             button.style["border" + edge] = "3px solid #D4AF37";
@@ -146,8 +151,8 @@ function renderBoard(focusCell) {
       button.addEventListener("click", () => action(cell));
       button.addEventListener("keydown", (event) => {
         const offsets = {
-          ArrowUp: -6,
-          ArrowDown: 6,
+          ArrowUp: -size,
+          ArrowDown: size,
           ArrowLeft: -1,
           ArrowRight: 1,
         };
@@ -156,9 +161,9 @@ function renderBoard(focusCell) {
           const target = cell + offsets[event.key];
           if (
             target >= 0 &&
-            target < 36 &&
+            target < size * size &&
             !(event.key === "ArrowLeft" && c === 0) &&
-            !(event.key === "ArrowRight" && c === 5)
+            !(event.key === "ArrowRight" && c === size - 1)
           ) {
             button.tabIndex = -1;
             const next = board.querySelector(`[data-cell="${target}"]`);
@@ -171,7 +176,7 @@ function renderBoard(focusCell) {
         } else if (["Backspace", "Delete"].includes(event.key)) {
           event.preventDefault();
           action(cell, false, true);
-        } else if (/^[1-6]$/.test(event.key)) {
+        } else if (/^[1-7]$/.test(event.key) && Number(event.key) <= size) {
           event.preventDefault();
           selected = Number(event.key) - 1;
           marking = false;
@@ -187,7 +192,7 @@ function renderBoard(focusCell) {
 function renderTray() {
   const t = s();
   $("tray").replaceChildren();
-  for (let person = 0; person < 6; person++) {
+  for (let person = 0; person < size; person++) {
     const cell = game ? game.positions[person] : -1,
       button = document.createElement("button");
     button.className = "person" + (cell >= 0 ? " placed" : "");
@@ -297,11 +302,23 @@ function updateControls() {
       (id === "undo" && !game?.history.length);
     $(id).querySelector("span").textContent = s()[id];
   }
+  for (const radio of document.querySelectorAll("[data-size]")) {
+    const active = Number(radio.dataset.size) === size;
+    radio.disabled = loading;
+    radio.setAttribute("aria-checked", String(active));
+    radio.tabIndex = active ? 0 : -1;
+    radio.title = s().sizeOptions[radio.dataset.size];
+    radio.setAttribute("aria-label", radio.title);
+  }
+  $("size-selector").setAttribute("aria-label", s().sizeLabel);
   $("language").disabled = loading;
   $("start").disabled = loading;
   $("mark").setAttribute("aria-pressed", String(marking));
   $("counter").textContent = game
-    ? `${game.positions.filter((x) => x < 0).length} ${s().remaining}`
+    ? format(s().sizeCounter, {
+        remaining: game.positions.filter((x) => x < 0).length,
+        total: size,
+      })
     : "";
   $("case-label").textContent = game
     ? `${s().case} № ${game.puzzle.seed.toString(16).toUpperCase().padStart(8, "0")}`
@@ -314,6 +331,9 @@ function updateControls() {
 function render() {
   const t = s();
   document.documentElement.lang = locale;
+  document.documentElement.style.setProperty("--grid-size", size);
+  document.documentElement.style.setProperty("--person-count", size);
+  document.body.dataset.gridSize = size;
   document.title = "Murdoku · " + t.subtitle;
   for (const [id, key] of Object.entries({
     subtitle: "subtitle",
@@ -323,6 +343,7 @@ function render() {
     start: "start",
     "tray-title": "tray",
     "clues-title": "clues",
+    "toggle-dossier": "dossierToggle",
     "dossier-label": "dossier",
     "rooms-title": "rooms",
     instructions: "instructions",
@@ -334,7 +355,7 @@ function render() {
     "board-tab": "boardTab",
     "clues-tab": "cluesTab",
   }))
-    $(id).textContent = t[key];
+    $(id).textContent = format(t[key], { total: size });
   for (const b of document.querySelectorAll(".filters button"))
     b.textContent =
       t[
@@ -383,22 +404,34 @@ function showModal(kind, title, body, detail = "") {
     kind === "loading" ? "⌕" : kind === "victory" ? "✦" : "!";
   $("modal-primary").hidden = kind === "loading";
   $("modal-close").hidden = kind === "loading";
-  $("modal-primary").textContent = kind === "error" ? s().retry : s().another;
-  $("modal-close").textContent = kind === "error" ? s().back : s().close;
+  $("modal-primary").textContent =
+    kind === "size"
+      ? s().sizeContinue
+      : kind === "error"
+        ? s().retry
+        : s().another;
+  $("modal-close").textContent =
+    kind === "size"
+      ? s().cancel
+      : kind === "error"
+        ? s().sizeRevert
+        : s().close;
   if (!$("modal").open) $("modal").showModal();
 }
-function newCase() {
+function newCase(nextSize = size) {
   if (loading) return;
+  if (nextSize !== size) game = null;
+  size = nextSize;
   loading = true;
   document.body.classList.add("loading");
   $("reset-confirm").hidden = true;
   render();
-  showModal("loading", s().generating, s().verifying);
+  showModal("loading", format(s().generating, { size }), s().verifying);
   setTimeout(() => {
     try {
       const random = new Uint32Array(1);
       crypto.getRandomValues(random);
-      game = new window.MurdokuGame(E.generate(random[0]));
+      game = new window.MurdokuGame(E.generate(random[0], 100, size));
       selected = 0;
       marking = false;
       resolved.clear();
@@ -411,7 +444,7 @@ function newCase() {
       modalKind = "";
     } catch (error) {
       console.error(error);
-      showModal("error", s().error, "");
+      showModal("error", format(s().sizeError, { size }), "");
     } finally {
       loading = false;
       document.body.classList.remove("loading");
@@ -425,8 +458,33 @@ function newCase() {
     }
   }, 80);
 }
-$("new").addEventListener("click", newCase);
-$("start").addEventListener("click", newCase);
+function requestSize(next) {
+  if (loading || next === size) return;
+  if (
+    game &&
+    (game.positions.some((x) => x >= 0) || game.marks.length || resolved.size)
+  ) {
+    pendingSize = next;
+    showModal("size", s().sizeLabel, s().sizeConfirm);
+  } else newCase(next);
+}
+for (const radio of document.querySelectorAll("[data-size]")) {
+  radio.addEventListener("click", () =>
+    requestSize(Number(radio.dataset.size)),
+  );
+  radio.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const sizes = [5, 6, 7],
+      index = sizes.indexOf(Number(radio.dataset.size));
+    const next = sizes[(index + (event.key === "ArrowRight" ? 1 : 2)) % 3];
+    requestSize(next);
+    if (!$("modal").open)
+      document.querySelector(`[data-size="${next}"]`).focus();
+  });
+}
+$("new").addEventListener("click", () => newCase());
+$("start").addEventListener("click", () => newCase());
 $("undo").addEventListener("click", () => {
   if (game?.undo()) {
     located = -1;
@@ -489,21 +547,27 @@ $("language").addEventListener("change", () => {
 });
 $("modal-primary").addEventListener("click", () => {
   $("modal").close();
+  const next = modalKind === "size" ? pendingSize : size;
+  pendingSize = null;
   modalKind = "";
-  newCase();
+  newCase(next);
 });
 $("modal-close").addEventListener("click", () => {
   $("modal").close();
-  if (modalKind === "error") {
-    game = null;
-    $("feedback").textContent = "";
-    render();
-  }
+  const wasError = modalKind === "error";
+  pendingSize = null;
   modalKind = "";
-  $("new").focus();
+  if (wasError) {
+    game = null;
+    newCase(6);
+  } else document.querySelector(`[data-size="${size}"]`).focus();
 });
 $("modal").addEventListener("cancel", (event) => {
   if (loading) event.preventDefault();
+  else {
+    pendingSize = null;
+    modalKind = "";
+  }
 });
 for (const b of document.querySelectorAll(".filters button"))
   b.addEventListener("click", () => {
@@ -520,7 +584,24 @@ for (const id of ["board", "clues"])
     for (const key of ["board", "clues"])
       $(key + "-tab").setAttribute("aria-pressed", String(key === view));
   });
+$("toggle-dossier").addEventListener("click", () => {
+  const collapsed = $("dossier").classList.toggle("collapsed");
+  $("toggle-dossier").setAttribute("aria-expanded", String(!collapsed));
+});
 document.addEventListener("keydown", (event) => {
+  if (
+    !loading &&
+    game &&
+    !$("modal").open &&
+    /^[1-7]$/.test(event.key) &&
+    Number(event.key) <= size &&
+    !event.target.closest(".cell, input, select")
+  ) {
+    selected = Number(event.key) - 1;
+    marking = false;
+    renderTray();
+    updateControls();
+  }
   if (
     (event.ctrlKey || event.metaKey) &&
     event.key.toLowerCase() === "z" &&

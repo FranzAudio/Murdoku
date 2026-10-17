@@ -7,7 +7,8 @@
   class Game {
     constructor(puzzle) {
       this.puzzle = puzzle;
-      this.positions = Array(6).fill(-1);
+      this.size = puzzle.size ?? 6;
+      this.positions = Array(this.size).fill(-1);
       this.marks = [];
       this.history = [];
       this.moves = 0;
@@ -24,6 +25,14 @@
       return this.positions.indexOf(cell);
     }
     act(cell, person, mark = false, clear = false) {
+      if (!Number.isInteger(cell) || cell < 0 || cell >= this.size * this.size)
+        return false;
+      if (
+        !mark &&
+        !clear &&
+        (!Number.isInteger(person) || person < 0 || person >= this.size)
+      )
+        return false;
       const occupant = this.occupant(cell);
       if (mark && occupant >= 0) return false;
       if (clear && occupant < 0 && !this.marks.includes(cell)) return false;
@@ -57,10 +66,16 @@
     conflicts() {
       const rows = [],
         cols = [];
-      for (let i = 0; i < 6; i++) {
-        if (this.positions.filter((x) => x >= 0 && E.row(x) === i).length > 1)
+      for (let i = 0; i < this.size; i++) {
+        if (
+          this.positions.filter((x) => x >= 0 && E.row(x, this.size) === i)
+            .length > 1
+        )
           rows.push(i);
-        if (this.positions.filter((x) => x >= 0 && E.col(x) === i).length > 1)
+        if (
+          this.positions.filter((x) => x >= 0 && E.col(x, this.size) === i)
+            .length > 1
+        )
           cols.push(i);
       }
       return { rows, cols };
@@ -72,13 +87,13 @@
         (x, i) => x >= 0 && x !== this.puzzle.solution[i],
       ).length;
       const contradicted = this.puzzle.clues.filter((c) => {
-        if (c.type === "count" && placed < 6) return false;
+        if (c.type === "count" && placed < this.size) return false;
         if (c.a !== undefined && this.positions[c.a] < 0) return false;
         if (c.b !== undefined && this.positions[c.b] < 0) return false;
         return !E.clueTrue(c, this.positions, this.puzzle.rooms);
       }).length;
       const solved =
-        placed === 6 &&
+        placed === this.size &&
         E.valid(this.positions, this.puzzle.rooms, this.puzzle.clues);
       const murderer = solved
         ? this.positions.findIndex(
@@ -88,7 +103,7 @@
           )
         : -1;
       return {
-        missing: 6 - placed,
+        missing: this.size - placed,
         wrong,
         clues: contradicted,
         conflicts: conflict.rows.length + conflict.cols.length,
