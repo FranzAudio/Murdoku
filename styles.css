@@ -45,7 +45,7 @@ button {
   min-height: 44px;
 }
 button:hover:not(:disabled) {
-  background: var(--color-surface-active);
+  background-color: var(--color-surface-active);
   border-color: var(--color-border-accent);
 }
 button:disabled {
@@ -1032,7 +1032,7 @@ body[data-grid-size="7"] .cell {
 }
 .hint-step-badge {
   color: var(--color-hint);
-  background: var(--color-hint-bg);
+  background-color: var(--color-hint-bg);
   font: 700 12px monospace;
   padding: 2px 8px;
   border-radius: 12px;
@@ -1111,4 +1111,70 @@ body[data-grid-size="7"] .cell {
 .language select {
   min-width: 88px;
   min-height: 44px;
+}
+
+/* One shared wall stroke per grid edge, including convex and reflex joins. */
+:root {
+  --color-room-wall: #d4af37;
+  --color-room-inner-grid: rgba(75, 85, 99, 0.45);
+  --color-room-target-bg: rgba(212, 175, 55, 0.12);
+  --color-room-target-glow: rgba(212, 175, 55, 0.4);
+}
+.board {
+  position: relative;
+}
+.cell {
+  border: 1px dashed var(--color-room-inner-grid);
+  background-image: var(--room-texture, none);
+  background-origin: border-box;
+  background-repeat: repeat;
+  box-shadow: inset 0 0 4px rgba(0, 0, 0, 0.4);
+}
+.cell[data-walls*="t"] {
+  border-top-color: transparent;
+}
+.cell[data-walls*="r"] {
+  border-right-color: transparent;
+}
+.cell[data-walls*="b"] {
+  border-bottom-color: transparent;
+}
+.cell[data-walls*="l"] {
+  border-left-color: transparent;
+}
+.room-walls {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9;
+  overflow: visible;
+}
+.room-walls path {
+  fill: none;
+  stroke: var(--color-room-wall);
+  stroke-width: 3;
+  stroke-linecap: square;
+  stroke-linejoin: miter;
+  vector-effect: non-scaling-stroke;
+}
+.cell:hover:not(:disabled)::before,
+.cell:focus-visible::before {
+  background: rgba(229, 193, 88, 0.15);
+}
+.cell.room-target::before {
+  background: var(--color-room-target-bg);
+}
+.cell.room-target:not(.hint-highlight):not(.conflict):not(.hint-conflict) {
+  box-shadow: inset 0 0 12px var(--color-room-target-glow);
+}
+.cell.conflict::after,
+.cell.hint-conflict::after {
+  inset: 2px !important;
+}
+@media (max-width: 639px) {
+  .room-walls path {
+    stroke-width: 2;
+  }
 }

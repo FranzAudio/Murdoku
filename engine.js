@@ -24,32 +24,215 @@
     }
     return a;
   }
+  // Rectangles and corner-notched rectangles are generated from dimensions, never
+  // stored maps. Catalogs are immutable, shared geometry only (not puzzle answers).
+  const shapeCatalogs = new Map();
+  function shapeCatalog(N) {
+    const byCell = indices(N * N).map(() => []),
+      seen = new Set();
+    for (let h = 2; h <= N; h++)
+      for (let w = 2; w <= N; w++) {
+        if (Math.max(w, h) / Math.min(w, h) > 2.5) continue;
+        const rectangle = indices(h * w).map((i) => [Math.floor(i / w), i % w]);
+        const shapes = [rectangle];
+        for (let nh = 1; nh < h; nh++)
+          for (let nw = 1; nw < w; nw++) {
+            if ((w * h - nw * nh) / (w * h) < 0.6) continue;
+            for (let corner = 0; corner < 4; corner++)
+              shapes.push(
+                rectangle.filter(
+                  ([r, c]) =>
+                    !(
+                      (corner & 1 ? r >= h - nh : r < nh) &&
+                      (corner & 2 ? c >= w - nw : c < nw)
+                    ),
+                ),
+              );
+          }
+        for (const shape of shapes) {
+          // Keep the largest room near twice the mean room area, avoiding a giant
+          // hall with tiny leftover closets. This is stricter than the AC floor.
+          if (shape.length > N + 3) continue;
+          for (let r = 0; r <= N - h; r++)
+            for (let c = 0; c <= N - w; c++) {
+              const cells = shape.map(([y, x]) => (r + y) * N + c + x),
+                key = cells.join(",");
+              if (seen.has(key)) continue;
+              seen.add(key);
+              const neighbors = [
+                ...new Set(
+                  cells
+                    .flatMap((x) => [
+                      col(x, N) ? x - 1 : -1,
+                      col(x, N) < N - 1 ? x + 1 : -1,
+                      x >= N ? x - N : -1,
+                      x + N < N * N ? x + N : -1,
+                    ])
+                    .filter((x) => x >= 0 && !cells.includes(x)),
+                ),
+              ];
+              // Two 32-bit words cover up to 49 cells without BigInt allocations.
+              const shapeRecord = {
+                cells,
+                neighbors,
+                w,
+                h,
+                spans: w === N || h === N,
+                lo: cells.reduce(
+                  (mask, x) => (x < 32 ? mask | (1 << x) : mask),
+                  0,
+                ),
+                hi: cells.reduce(
+                  (mask, x) => (x >= 32 ? mask | (1 << (x - 32)) : mask),
+                  0,
+                ),
+              };
+              for (const cell of cells) byCell[cell].push(shapeRecord);
+            }
+        }
+      }
+    return byCell;
+  }
   function partition(random, N) {
-    const minimum = N - 1,
+    if (!shapeCatalogs.has(N)) shapeCatalogs.set(N, shapeCatalog(N));
+    const catalog = shapeCatalogs.get(N),
+      board = Array(N * N).fill(-1),
+      chosen = [],
+      minimum = N - 1,
       maximum = N === 5 ? 5 : N + 1;
-    const rects = [[0, 0, N, N]],
-      target = minimum + Math.floor(random() * (maximum - minimum + 1));
-    while (rects.length < target) {
-      const options = rects
-        .map((q, i) => ({ q, i }))
-        .filter(({ q }) => q[2] * q[3] > 2);
-      const { q, i } = options[Math.floor(random() * options.length)];
-      const [r, c, h, w] = q;
-      const vertical = w > 1 && (h === 1 || random() < 0.5);
-      const cut = 1 + Math.floor(random() * ((vertical ? w : h) - 1));
-      rects.splice(
-        i,
-        1,
-        vertical ? [r, c, h, cut] : [r, c, cut, w],
-        vertical ? [r, c + cut, h, w - cut] : [r + cut, c, h - cut, w],
+    let nodes = 0;
+    function tile(lo, hi, left, spans) {
+      if (++nodes > 5000) return false;
+      if (!left)
+        return (
+          chosen.length >= minimum &&
+          chosen.length <= maximum &&
+          chosen.some((shape) => shape.cells.length < shape.w * shape.h)
+        );
+      if (
+        chosen.length >= maximum ||
+        left < Math.max(0, minimum - chosen.length) * 3
+      )
+        return false;
+      const cell = board.indexOf(-1);
+      const options = catalog[cell].filter(
+        (shape) =>
+          !(shape.lo & lo) && !(shape.hi & hi) && (!shape.spans || !spans),
       );
+      const start = Math.floor(random() * options.length);
+      for (let i = 0; i < options.length; i++) {
+        const shape = options[(start + i) % options.length];
+        // DEC-010-3: every edge-adjacent pair differs in at least one dimension.
+        if (
+          shape.neighbors.some(
+            (x) =>
+              board[x] >= 0 &&
+              chosen[board[x]].w === shape.w &&
+              chosen[board[x]].h === shape.h,
+          )
+        )
+          continue;
+        for (const x of shape.cells) board[x] = chosen.length;
+        chosen.push(shape);
+        if (
+          tile(
+            lo | shape.lo,
+            hi | shape.hi,
+            left - shape.cells.length,
+            spans + Number(shape.spans),
+          )
+        )
+          return true;
+        chosen.pop();
+        for (const x of shape.cells) board[x] = -1;
+        if (nodes > 5000) break;
+      }
+      return false;
     }
-    const rooms = Array(N * N);
-    shuffle(rects, random).forEach(([r, c, h, w], id) => {
-      for (let y = r; y < r + h; y++)
-        for (let x = c; x < c + w; x++) rooms[y * N + x] = id;
-    });
+    if (!tile(0, 0, N * N, 0)) return null;
+    // Rotate/reflect the generated tiling and shuffle its names to avoid an
+    // upper-left search bias; both operations preserve all geometry thresholds.
+    const ids = shuffle(indices(chosen.length), random),
+      turns = Math.floor(random() * 4),
+      reflect = random() < 0.5,
+      rooms = Array(N * N);
+    for (let cell = 0; cell < board.length; cell++) {
+      let r = row(cell, N),
+        c = col(cell, N);
+      if (reflect) c = N - 1 - c;
+      for (let turn = 0; turn < turns; turn++) [r, c] = [c, N - 1 - r];
+      rooms[r * N + c] = ids[board[cell]];
+    }
     return rooms;
+  }
+  function roomGeometry(rooms, N = Math.sqrt(rooms.length)) {
+    if (
+      !SUPPORTED_SIZES.includes(N) ||
+      rooms.length !== N * N ||
+      rooms.some((id) => !Number.isInteger(id) || id < 0 || id > 7)
+    )
+      return { valid: false, rooms: [], adjacency: [] };
+    const ids = [...new Set(rooms)],
+      shapes = ids.map((id) => {
+        const cells = indices(N * N).filter((x) => rooms[x] === id),
+          rows = cells.map((x) => row(x, N)),
+          cols = cells.map((x) => col(x, N)),
+          h = Math.max(...rows) - Math.min(...rows) + 1,
+          w = Math.max(...cols) - Math.min(...cols) + 1,
+          seen = new Set([cells[0]]),
+          queue = [cells[0]];
+        for (const x of queue)
+          for (const y of [
+            col(x, N) ? x - 1 : -1,
+            col(x, N) < N - 1 ? x + 1 : -1,
+            x >= N ? x - N : -1,
+            x + N < N * N ? x + N : -1,
+          ])
+            if (y >= 0 && rooms[y] === id && !seen.has(y)) {
+              seen.add(y);
+              queue.push(y);
+            }
+        return {
+          id,
+          w,
+          h,
+          area: cells.length,
+          aspect: Math.max(w, h) / Math.min(w, h),
+          fill: cells.length / (w * h),
+          connected: seen.size === cells.length,
+          spans: w === N || h === N,
+        };
+      }),
+      edges = new Set();
+    for (let x = 0; x < N * N; x++)
+      for (const y of [
+        col(x, N) < N - 1 ? x + 1 : -1,
+        x + N < N * N ? x + N : -1,
+      ])
+        if (y >= 0 && rooms[x] !== rooms[y])
+          edges.add([rooms[x], rooms[y]].sort((a, b) => a - b).join(","));
+    const adjacency = [...edges].map((e) => e.split(",").map(Number)),
+      byId = new Map(shapes.map((s) => [s.id, s]));
+    return {
+      rooms: shapes,
+      adjacency,
+      valid:
+        ids.length >= N - 1 &&
+        ids.length <= (N === 5 ? 5 : N + 1) &&
+        shapes.every(
+          (s) =>
+            s.w >= 2 &&
+            s.h >= 2 &&
+            s.aspect <= 2.5 &&
+            s.fill >= 0.6 &&
+            s.connected,
+        ) &&
+        shapes.filter((s) => s.spans).length <= 1 &&
+        adjacency.every(
+          ([a, b]) =>
+            byId.get(a).w !== byId.get(b).w || byId.get(a).h !== byId.get(b).h,
+        ),
+    };
   }
   function nearRoom(cell, room, rooms, diagonal) {
     const N = Math.sqrt(rooms.length),
@@ -403,6 +586,7 @@
       solutions = enumerate(puzzle);
     return {
       valid: valid(puzzle.solution, puzzle.rooms, puzzle.clues, puzzle.objects),
+      geometry: roomGeometry(puzzle.rooms, puzzle.size).valid,
       unique:
         solutions.length === 1 &&
         solutions[0].every((x, i) => x === puzzle.solution[i]),
@@ -420,8 +604,9 @@
       col = (x) => x % N;
     const random = rng(seed);
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const rooms = partition(random, N),
-        columns = shuffle(indices(N), random);
+      const rooms = partition(random, N);
+      if (!rooms) continue;
+      const columns = shuffle(indices(N), random);
       let solution = columns.map((c, r) => r * N + c);
       const pairs = solution.filter(
         (x) => solution.filter((y) => rooms[y] === rooms[x]).length === 2,
@@ -492,6 +677,7 @@
         result.valid &&
         result.unique &&
         result.forward &&
+        result.geometry &&
         clues.some((c) => c.type === "beside") &&
         clues.some((c) => c.type === "touch")
       )
@@ -502,6 +688,7 @@
   const API = {
     buildId: BUILD_ID,
     generate,
+    roomGeometry,
     verify,
     enumerate,
     propagate,
@@ -511,6 +698,10 @@
     col,
     rng,
   };
-  if (typeof module !== "undefined" && module.exports) module.exports = API;
-  else root.MurdokuEngine = API;
+  if (typeof module !== "undefined" && module.exports) {
+    // Node-only audit entry point; the browser never loads the independent oracle.
+    API.auditRoomGeometry = (...args) =>
+      require("./room-metrics.cjs").measure(...args);
+    module.exports = API;
+  } else root.MurdokuEngine = API;
 })(typeof globalThis !== "undefined" ? globalThis : this);

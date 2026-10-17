@@ -215,6 +215,69 @@ function dismissHint() {
   renderClues();
   $("hint").focus();
 }
+let boardGeometryFrame = 0,
+  activeRoomTarget = null,
+  pinnedRoomTarget = null;
+function scheduleBoardGeometry() {
+  cancelAnimationFrame(boardGeometryFrame);
+  boardGeometryFrame = requestAnimationFrame(syncBoardGeometry);
+}
+function syncBoardGeometry() {
+  const board = $("board"),
+    cells = [...board.querySelectorAll(".cell")],
+    svg = board.querySelector(".room-walls");
+  if (!cells.length || !board.getBoundingClientRect().width) return;
+  const origin = cells[0].getBoundingClientRect();
+  for (const cell of cells) {
+    const box = cell.getBoundingClientRect();
+    cell.style.backgroundPosition = `${-(box.left - origin.left)}px ${-(box.top - origin.top)}px`;
+  }
+  if (!svg || !game) return;
+  const bounds = svg.getBoundingClientRect(),
+    rects = cells.map((cell) => cell.getBoundingClientRect()),
+    segments = [];
+  const line = (cell, edge) => {
+    const b = rects[cell],
+      x = b.left - bounds.left,
+      y = b.top - bounds.top;
+    const points = {
+      t: [x, y, x + b.width, y],
+      l: [x, y, x, y + b.height],
+      r: [x + b.width, y, x + b.width, y + b.height],
+      b: [x, y + b.height, x + b.width, y + b.height],
+    }[edge];
+    segments.push({ cell, edge, points });
+  };
+  for (let cell = 0; cell < cells.length; cell++) {
+    const r = E.row(cell, size),
+      c = E.col(cell, size),
+      room = game.puzzle.rooms[cell];
+    if (r === 0) line(cell, "t");
+    if (c === 0) line(cell, "l");
+    if (c === size - 1 || game.puzzle.rooms[cell + 1] !== room) line(cell, "r");
+    if (r === size - 1 || game.puzzle.rooms[cell + size] !== room)
+      line(cell, "b");
+  }
+  svg.setAttribute("viewBox", `0 0 ${bounds.width} ${bounds.height}`);
+  svg.firstChild.setAttribute(
+    "d",
+    segments
+      .map(({ points: [x1, y1, x2, y2] }) => `M${x1},${y1}L${x2},${y2}`)
+      .join(" "),
+  );
+  // Exposed geometry is DOM-only rendering data, never puzzle or deduction state.
+  svg.dataset.segments = JSON.stringify(segments);
+  svg.dataset.synced = "true";
+}
+function targetRoom(room) {
+  activeRoomTarget = room;
+  for (const cell of $("board").querySelectorAll(".cell"))
+    cell.classList.toggle(
+      "room-target",
+      room !== null && Number(cell.dataset.room) === room,
+    );
+}
+
 function renderBoard(focusCell) {
   const board = $("board"),
     t = s();
@@ -248,10 +311,7 @@ function renderBoard(focusCell) {
     gridRow.append(label);
     for (let c = 0; c < size; c++) {
       const cell = r * size + c,
-        room = game
-          ? game.puzzle.rooms[cell]
-          : Math.floor(r / Math.ceil(size / 2)) * 2 +
-            Math.floor(c / Math.ceil(size / 2)),
+        room = game ? game.puzzle.rooms[cell] : -1,
         person = game ? game.occupant(cell) : -1;
       const object = game?.puzzle.objects?.find((o) => o.cell === cell);
       const button = document.createElement("button");
@@ -272,20 +332,31 @@ function renderBoard(focusCell) {
         } else button.append(icon);
       }
       button.dataset.cell = cell;
+      button.classList.toggle(
+        "room-target",
+        game !== null && room === activeRoomTarget,
+      );
       button.setAttribute("role", "gridcell");
       button.tabIndex = cell === (focusCell ?? 0) ? 0 : -1;
       button.disabled = !game || loading;
-      button.style.backgroundImage = `url(assets/rooms/${textures[room]}.png?v=${BUILD_ID})`;
+      if (game) {
+        button.dataset.room = room;
+        button.style.setProperty(
+          "--room-texture",
+          `url(assets/rooms/${textures[room]}.png?v=${BUILD_ID})`,
+        );
+      }
       const rooms = game?.puzzle.rooms;
       if (rooms) {
+        const walls = [];
         for (const [edge, neighbor, boundary] of [
-          ["Top", cell - size, r === 0],
-          ["Bottom", cell + size, r === size - 1],
-          ["Left", cell - 1, c === 0],
-          ["Right", cell + 1, c === size - 1],
+          ["t", cell - size, r === 0],
+          ["b", cell + size, r === size - 1],
+          ["l", cell - 1, c === 0],
+          ["r", cell + 1, c === size - 1],
         ])
-          if (boundary || rooms[neighbor] !== room)
-            button.style["border" + edge] = "3px solid #D4AF37";
+          if (boundary || rooms[neighbor] !== room) walls.push(edge);
+        button.dataset.walls = walls.join("");
       }
       button.classList.toggle(
         "conflict",
@@ -331,7 +402,7 @@ function renderBoard(focusCell) {
             : t.empty;
       button.setAttribute(
         "aria-label",
-        `${coord(cell)}, ${t.roomNames[room]}, ${object ? t.objectNames[object.type] + ", " : ""}${state}`,
+        `${coord(cell)}, ${room < 0 ? "" : t.roomNames[room] + ", "}${object ? t.objectNames[object.type] + ", " : ""}${state}`,
       );
       button.title = button.getAttribute("aria-label");
       button.addEventListener("click", () => action(cell));
@@ -372,6 +443,14 @@ function renderBoard(focusCell) {
       gridRow.append(button);
     }
   }
+  if (game) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.classList.add("room-walls");
+    svg.setAttribute("aria-hidden", "true");
+    svg.append(document.createElementNS("http://www.w3.org/2000/svg", "path"));
+    board.append(svg);
+  }
+  scheduleBoardGeometry();
   if (focusCell !== undefined)
     board.querySelector(`[data-cell="${focusCell}"]`)?.focus();
 }
@@ -474,7 +553,24 @@ function renderClues() {
     }
     button.append(text);
     button.disabled = loading;
+    const referencedRoom = Number.isInteger(clue.room)
+      ? clue.room
+      : clue.type === "object" && clue.relation === "only_person"
+        ? game.puzzle.rooms[
+            game.puzzle.objects.find((o) => o.id === clue.object).cell
+          ]
+        : null;
+    for (const event of ["pointerenter", "focus"])
+      button.addEventListener(event, () => targetRoom(referencedRoom));
+    button.addEventListener("pointerleave", () => {
+      if (document.activeElement !== button) targetRoom(pinnedRoomTarget);
+    });
+    button.addEventListener("blur", () => {
+      if (!button.matches(":hover")) targetRoom(pinnedRoomTarget);
+    });
     button.addEventListener("click", () => {
+      pinnedRoomTarget = referencedRoom;
+      targetRoom(referencedRoom);
       if (resolved.has(index)) resolved.delete(index);
       else resolved.add(index);
       renderClues();
@@ -663,6 +759,8 @@ function showModal(kind, title, body, detail = "") {
   if (!$("modal").open) $("modal").showModal();
 }
 function newCase(nextSize = size) {
+  activeRoomTarget = null;
+  pinnedRoomTarget = null;
   if (loading) return;
   generationFailed = false;
   clearHintView();
@@ -967,3 +1065,6 @@ document.addEventListener("keydown", (event) => {
 render();
 
 matchMedia("(max-width:639px)").addEventListener("change", () => renderHint());
+
+const boardSizeObserver = new ResizeObserver(scheduleBoardGeometry);
+boardSizeObserver.observe($("board"));
