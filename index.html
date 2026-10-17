@@ -1,15 +1,16 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-build="1.1.1">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#12151B" />
     <title>Murdoku</title>
-    <link rel="stylesheet" href="styles.css" />
-    <script defer src="engine.js"></script>
-    <script defer src="game.js"></script>
-    <script defer src="strings.js"></script>
-    <script defer src="app.js"></script>
+    <link rel="stylesheet" href="styles.css?v=1.1.1" />
+    <script defer src="engine.js?v=1.1.1"></script>
+    <script defer src="game.js?v=1.1.1"></script>
+    <script defer src="strings.js?v=1.1.1"></script>
+    <script defer src="reliability.js?v=1.1.1"></script>
+    <script defer src="app.js?v=1.1.1"></script>
   </head>
   <body>
     <header class="masthead">
@@ -70,24 +71,24 @@
     <main>
       <nav id="toolbar" class="toolbar" aria-label="Game controls">
         <button id="new" class="primary">
-          <img src="assets/icons/new-case.png" alt="" /><span></span>
+          <img src="assets/icons/new-case.png?v=1.1.1" alt="" /><span></span>
         </button>
         <button id="undo" disabled>
-          <img src="assets/icons/undo.png" alt="" /><span></span>
+          <img src="assets/icons/undo.png?v=1.1.1" alt="" /><span></span>
         </button>
         <button id="reset" disabled>
-          <img src="assets/icons/reset.png" alt="" /><span></span>
+          <img src="assets/icons/reset.png?v=1.1.1" alt="" /><span></span>
         </button>
         <button id="mark" disabled aria-pressed="false">
-          <img src="assets/icons/mark-x.png" alt="" /><span></span>
+          <img src="assets/icons/mark-x.png?v=1.1.1" alt="" /><span></span>
         </button>
         <button id="hint" disabled aria-keyshortcuts="h">
-          <img src="assets/icons/hint.png" alt="" /><span
+          <img src="assets/icons/hint.png?v=1.1.1" alt="" /><span
             id="hint-label"
           ></span>
         </button>
         <button id="check" disabled>
-          <img src="assets/icons/check.png" alt="" /><span></span>
+          <img src="assets/icons/check.png?v=1.1.1" alt="" /><span></span>
         </button>
       </nav>
       <div class="case-bar">
@@ -110,7 +111,7 @@
         <div class="hint-header">
           <div class="hint-title-group">
             <img
-              src="assets/icons/hint.png"
+              src="assets/icons/hint.png?v=1.1.1"
               class="hint-mini-icon"
               alt=""
             /><span id="hint-eyebrow"></span
@@ -186,7 +187,10 @@
           </section>
         </aside>
       </div>
-      <footer><span>MURDOKU</span><span id="footer-copy"></span></footer>
+      <footer>
+        <span>MURDOKU</span
+        ><span id="footer-copy"> · <span id="build-id"></span></span>
+      </footer>
     </main>
     <dialog id="modal" aria-labelledby="modal-title">
       <div id="modal-symbol" aria-hidden="true">⌕</div>
