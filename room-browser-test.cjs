@@ -226,6 +226,22 @@ const { chromium } = require("playwright"),
           rooms.flatMap((r, i) => (r === shape.id ? [i] : [])),
           `target ${n}/${width}`,
         );
+        const alternate = await p.evaluate(
+          (room) =>
+            game.puzzle.clues.findIndex(
+              (c) => Number.isInteger(c.room) && c.room !== room,
+            ),
+          shape.id,
+        );
+        await p.locator(`[data-clue="${alternate}"]`).hover();
+        await p.mouse.move(0, 0);
+        assert.deepEqual(
+          await p
+            .locator(".cell.room-target")
+            .evaluateAll((c) => c.map((x) => Number(x.dataset.cell))),
+          rooms.flatMap((r, i) => (r === shape.id ? [i] : [])),
+          "keyboard focus outranks unrelated pointer enter/leave",
+        );
         await clue.click();
         if (width < 640) await p.locator("#board-tab").click();
         assert.equal(await p.locator(".cell.room-target").count(), shape.area);

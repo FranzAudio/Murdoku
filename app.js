@@ -217,7 +217,8 @@ function dismissHint() {
 }
 let boardGeometryFrame = 0,
   activeRoomTarget = null,
-  pinnedRoomTarget = null;
+  pinnedRoomTarget = null,
+  hoveredRoomClue = null;
 function scheduleBoardGeometry() {
   cancelAnimationFrame(boardGeometryFrame);
   boardGeometryFrame = requestAnimationFrame(syncBoardGeometry);
@@ -278,6 +279,16 @@ function targetRoom(room) {
     );
 }
 
+function refreshRoomTarget() {
+  const focused = document.activeElement;
+  const clue = focused?.classList.contains("clue")
+    ? focused
+    : hoveredRoomClue?.isConnected
+      ? hoveredRoomClue
+      : null;
+  const value = clue?.dataset.roomReference;
+  targetRoom(clue ? (value === "" ? null : Number(value)) : pinnedRoomTarget);
+}
 function renderBoard(focusCell) {
   const board = $("board"),
     t = s();
@@ -560,14 +571,17 @@ function renderClues() {
             game.puzzle.objects.find((o) => o.id === clue.object).cell
           ]
         : null;
-    for (const event of ["pointerenter", "focus"])
-      button.addEventListener(event, () => targetRoom(referencedRoom));
+    button.dataset.roomReference = referencedRoom ?? "";
+    button.addEventListener("pointerenter", () => {
+      hoveredRoomClue = button;
+      refreshRoomTarget();
+    });
     button.addEventListener("pointerleave", () => {
-      if (document.activeElement !== button) targetRoom(pinnedRoomTarget);
+      if (hoveredRoomClue === button) hoveredRoomClue = null;
+      refreshRoomTarget();
     });
-    button.addEventListener("blur", () => {
-      if (!button.matches(":hover")) targetRoom(pinnedRoomTarget);
-    });
+    for (const event of ["focus", "blur"])
+      button.addEventListener(event, refreshRoomTarget);
     button.addEventListener("click", () => {
       pinnedRoomTarget = referencedRoom;
       targetRoom(referencedRoom);
@@ -761,6 +775,7 @@ function showModal(kind, title, body, detail = "") {
 function newCase(nextSize = size) {
   activeRoomTarget = null;
   pinnedRoomTarget = null;
+  hoveredRoomClue = null;
   if (loading) return;
   generationFailed = false;
   clearHintView();
