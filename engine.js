@@ -255,18 +255,43 @@
       clues.every((c) => clueTrue(c, positions, rooms, objects))
     );
   }
-  function initialDomains(puzzle) {
+  function initialDomains(puzzle, trace = null) {
     const N = puzzle.size ?? 6,
       cells = indices(N * N);
-    return Array.from({ length: N }, (_, a) =>
-      cells.filter((x) =>
-        puzzle.clues.every((c) =>
-          c.type === "object"
-            ? objectCandidate(c, a, x, puzzle.rooms, puzzle.objects ?? [])
-            : c.a !== a || c.type === "direction" || unary(c, x, puzzle.rooms),
-        ),
-      ),
-    );
+    return Array.from({ length: N }, (_, person) => {
+      let domain = [...cells],
+        previous = -1;
+      puzzle.clues.forEach((clue, index) => {
+        const next = domain.filter((cell) =>
+          clue.type === "object"
+            ? objectCandidate(
+                clue,
+                person,
+                cell,
+                puzzle.rooms,
+                puzzle.objects ?? [],
+              )
+            : clue.a !== person ||
+              clue.type === "direction" ||
+              unary(clue, cell, puzzle.rooms),
+        );
+        if (next.length !== domain.length && trace) {
+          trace.push({
+            kind: "clue",
+            person,
+            clueIndices: [index],
+            dependencies: previous < 0 ? [] : [previous],
+            before: domain,
+            after: next,
+            removed: domain.length - next.length,
+            removedCells: domain.filter((cell) => !next.includes(cell)),
+          });
+          previous = trace.length - 1;
+        }
+        domain = next;
+      });
+      return domain;
+    });
   }
   function compatible(a, x, b, y, clues, N) {
     if (row(x, N) === row(y, N) || col(x, N) === col(y, N)) return false;
@@ -280,8 +305,14 @@
   // Arc consistency removes unsupported candidates. This loop never guesses or branches.
   function propagate(puzzle) {
     const N = puzzle.size ?? 6;
-    const domains = initialDomains(puzzle),
-      trace = [];
+    const trace = [],
+      domains = initialDomains(puzzle, trace),
+      lastChange = Array(N).fill(-1),
+      causes = Array.from({ length: N }, () => new Set());
+    trace.forEach((step, index) => {
+      lastChange[step.person] = index;
+      step.clueIndices.forEach((id) => causes[step.person].add(id));
+    });
     let changed = true;
     while (changed) {
       changed = false;
@@ -292,11 +323,34 @@
               domains[b].some((y) => compatible(a, x, b, y, puzzle.clues, N)),
             );
             if (next.length !== domains[a].length) {
+              const pairClues = puzzle.clues.flatMap((clue, index) =>
+                clue.type === "direction" &&
+                ((clue.a === a && clue.b === b) ||
+                  (clue.a === b && clue.b === a))
+                  ? [index]
+                  : [],
+              );
+              const clueIndices = pairClues.length ? pairClues : [...causes[b]];
               trace.push({
+                kind: "arc",
                 person: a,
                 support: b,
+                clueIndices,
+                dependencies: [
+                  ...new Set(
+                    [lastChange[a], lastChange[b]].filter(
+                      (index) => index >= 0,
+                    ),
+                  ),
+                ],
+                before: domains[a],
+                after: next,
+                supportDomain: [...domains[b]],
                 removed: domains[a].length - next.length,
+                removedCells: domains[a].filter((cell) => !next.includes(cell)),
               });
+              lastChange[a] = trace.length - 1;
+              causes[a] = new Set([...causes[a], ...causes[b], ...pairClues]);
               domains[a] = next;
               changed = true;
             }

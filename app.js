@@ -23,7 +23,10 @@ let locale = "it",
   view = "board",
   located = -1,
   size = 6,
-  pendingSize = null;
+  pendingSize = null,
+  hintResult = null,
+  hintDismissed = false,
+  generationFailed = false;
 const s = () => window.MurdokuStrings[locale];
 function format(text, values) {
   return text.replace(/\{(\w+)\}/g, (_, key) => values[key]);
@@ -72,6 +75,115 @@ function clueText(clue) {
     ],
     values,
   );
+}
+function hintText(result = hintResult) {
+  if (!result) return "";
+  if (result.status !== "step")
+    return s()[
+      {
+        conflict: "hintConflict",
+        solved: "hintSolved",
+        unavailable: "hintNoFurther",
+        exhausted: "hintNoFurther",
+      }[result.status]
+    ];
+  const step = result.step,
+    id = step.clueIndices[0] + 1,
+    name = s().names[step.person];
+  const consequence =
+    step.after.length === 1
+      ? format(s().hintForced, {
+          name,
+          cell: coord(step.after[0]),
+          room: s().roomNames[game.puzzle.rooms[step.after[0]]],
+        })
+      : format(s().hintCandidates, {
+          name,
+          count: step.after.length,
+          cells: step.after.map(coord).join(", "),
+        });
+  return (
+    format(step.kind === "arc" ? s().hintArc : s().hintFrom, { id }) +
+    " " +
+    consequence
+  );
+}
+function renderHint() {
+  const active = hintResult && !hintDismissed;
+  $("hint-banner").hidden = !active;
+  $("hint-banner").setAttribute("aria-label", s().hint);
+  $("hint").setAttribute("aria-label", s().hintAria);
+  $("hint-dismiss").setAttribute("aria-label", s().hintDismiss);
+  $("hint-eyebrow").textContent = s().hintEyebrow;
+  $("hint-return").textContent = s().hintReturn;
+  if (!active) return;
+  const isStep = hintResult.status === "step";
+  $("hint-step").hidden = !isStep;
+  $("hint-clue-link").hidden = !isStep;
+  $("hint-step").textContent = isStep
+    ? format(s().hintStep, {
+        current: hintResult.index + 1,
+        total: hintResult.total,
+      })
+    : "";
+  $("hint-clue-link").textContent = isStep
+    ? format(s().hintShowClue, { id: hintResult.step.clueIndices[0] + 1 })
+    : "";
+  $("hint-text").textContent = hintText();
+  $("hint-subtext").textContent = isStep
+    ? s().hintSubtext
+    : hintResult.status === "exhausted"
+      ? s().hintCompleted
+      : "";
+  $("hint-return").hidden = !(
+    view === "clues" && matchMedia("(max-width:639px)").matches
+  );
+}
+function clearHintView() {
+  hintResult = null;
+  hintDismissed = false;
+  renderHint();
+  renderClues();
+}
+function scrollHintClue(focus = false) {
+  if (hintResult?.status !== "step") return;
+  const clue = $("clues").querySelector(
+    `[data-clue="${hintResult.step.clueIndices[0]}"]`,
+  );
+  if (clue) {
+    clue.scrollIntoView({
+      behavior: matchMedia("(prefers-reduced-motion:reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "nearest",
+    });
+    if (focus) clue.focus({ preventScroll: true });
+  }
+}
+function showHint() {
+  if (!game || loading || generationFailed || $("modal").open) return;
+  const focused = document.activeElement?.dataset.cell;
+  hintResult = game.hint(!hintDismissed);
+  hintDismissed = false;
+  if (hintResult.status === "step") {
+    filter = "all";
+    document
+      .querySelectorAll(".filters button")
+      .forEach((b) =>
+        b.setAttribute("aria-pressed", String(b.dataset.filter === "all")),
+      );
+  }
+  renderBoard(focused === undefined ? undefined : Number(focused));
+  renderClues();
+  renderHint();
+  if (matchMedia("(min-width:1025px)").matches) scrollHintClue();
+}
+function dismissHint() {
+  hintDismissed = true;
+  renderHint();
+  renderBoard();
+  renderClues();
+  $("hint").focus();
 }
 function renderBoard(focusCell) {
   const board = $("board"),
@@ -149,6 +261,21 @@ function renderBoard(focusCell) {
         "conflict",
         conflicts.rows.includes(r) || conflicts.cols.includes(c),
       );
+      const hintActive =
+        hintResult?.status === "step" &&
+        !hintDismissed &&
+        hintResult.step.after.includes(cell);
+      button.classList.toggle("hint-highlight", hintActive);
+      button.classList.toggle(
+        "hint-conflict",
+        hintResult?.status === "conflict" &&
+          !hintDismissed &&
+          hintResult.cells.includes(cell),
+      );
+      if (hintActive) {
+        button.setAttribute("aria-current", "true");
+        button.setAttribute("aria-description", hintText());
+      }
       button.classList.toggle("located", located === cell);
       if (person >= 0) {
         button.append(portrait(person));
@@ -293,14 +420,19 @@ function renderClues() {
     }
     const button = document.createElement("button");
     button.className = "clue";
+    const hintActive =
+      hintResult?.status === "step" &&
+      !hintDismissed &&
+      hintResult.step.clueIndices[0] === index;
+    button.classList.toggle("hint-active", hintActive);
     button.dataset.clue = index;
     button.setAttribute("aria-pressed", String(resolved.has(index)));
     button.setAttribute("aria-label", t.resolved + ": " + clueText(clue));
     const number = document.createElement("span");
     number.className = "clue-number";
-    number.textContent = resolved.has(index)
-      ? "✓"
-      : String(index + 1).padStart(2, "0");
+    number.textContent =
+      (hintActive ? "💡 " : "") +
+      (resolved.has(index) ? "✓" : String(index + 1).padStart(2, "0"));
     const text = document.createElement("span");
     text.textContent = clueText(clue);
     button.append(number);
@@ -358,11 +490,12 @@ function renderLegend() {
   }
 }
 function updateControls() {
-  for (const id of ["new", "undo", "reset", "mark", "check"]) {
+  for (const id of ["new", "undo", "reset", "mark", "hint", "check"]) {
     $(id).disabled =
       loading ||
       (id !== "new" && !game) ||
-      (id === "undo" && !game?.history.length);
+      (id === "undo" && !game?.history.length) ||
+      (id === "hint" && generationFailed);
     $(id).querySelector("span").textContent = s()[id];
   }
   for (const radio of document.querySelectorAll("[data-size]")) {
@@ -439,6 +572,7 @@ function render() {
   renderClues();
   renderLegend();
   updateControls();
+  renderHint();
 }
 function announceConflicts() {
   const t = s(),
@@ -453,6 +587,7 @@ function announceConflicts() {
 function action(cell, mark = marking, clear = false) {
   if (!game || loading) return;
   if (game.act(cell, selected, mark, clear)) {
+    clearHintView();
     located = -1;
     $("feedback").textContent = "";
     announceConflicts();
@@ -486,6 +621,8 @@ function showModal(kind, title, body, detail = "") {
 }
 function newCase(nextSize = size) {
   if (loading) return;
+  generationFailed = false;
+  clearHintView();
   if (nextSize !== size) game = null;
   size = nextSize;
   loading = true;
@@ -513,6 +650,7 @@ function newCase(nextSize = size) {
       $("modal").close();
       modalKind = "";
     } catch (error) {
+      generationFailed = true;
       console.error(error);
       showModal("error", format(s().sizeError, { size }), s().furnitureError);
     } finally {
@@ -557,6 +695,7 @@ $("new").addEventListener("click", () => newCase());
 $("start").addEventListener("click", () => newCase());
 $("undo").addEventListener("click", () => {
   if (game?.undo()) {
+    clearHintView();
     located = -1;
     $("feedback").textContent = "";
     announceConflicts();
@@ -573,6 +712,7 @@ $("cancel-reset").addEventListener("click", () => {
 });
 $("confirm-reset").addEventListener("click", () => {
   game.reset();
+  clearHintView();
   located = -1;
   $("reset-confirm").hidden = true;
   $("feedback").textContent = s().ready;
@@ -586,6 +726,39 @@ $("mark").addEventListener("click", () => {
   renderTray();
   renderBoard();
   updateControls();
+});
+$("hint").addEventListener("click", showHint);
+$("hint-dismiss").addEventListener("click", dismissHint);
+$("hint-clue-link").addEventListener("click", () => {
+  if (hintResult?.status !== "step") return;
+  filter = "all";
+  document
+    .querySelectorAll(".filters button")
+    .forEach((b) =>
+      b.setAttribute("aria-pressed", String(b.dataset.filter === "all")),
+    );
+  $("dossier").classList.remove("collapsed");
+  $("toggle-dossier").setAttribute("aria-expanded", "true");
+  if (matchMedia("(max-width:639px)").matches) {
+    view = "clues";
+    document.body.dataset.view = view;
+    $("board-tab").setAttribute("aria-pressed", "false");
+    $("clues-tab").setAttribute("aria-pressed", "true");
+  }
+  renderClues();
+  renderHint();
+  scrollHintClue(true);
+});
+$("hint-return").addEventListener("click", () => {
+  view = "board";
+  document.body.dataset.view = view;
+  $("board-tab").setAttribute("aria-pressed", "true");
+  $("clues-tab").setAttribute("aria-pressed", "false");
+  renderHint();
+  if (hintResult?.status === "step")
+    $("board")
+      .querySelector(`[data-cell="${hintResult.step.after[0]}"]`)
+      ?.focus();
 });
 $("check").addEventListener("click", () => {
   const result = game.check();
@@ -653,12 +826,29 @@ for (const id of ["board", "clues"])
     document.body.dataset.view = view;
     for (const key of ["board", "clues"])
       $(key + "-tab").setAttribute("aria-pressed", String(key === view));
+    renderHint();
   });
 $("toggle-dossier").addEventListener("click", () => {
   const collapsed = $("dossier").classList.toggle("collapsed");
   $("toggle-dossier").setAttribute("aria-expanded", String(!collapsed));
 });
 document.addEventListener("keydown", (event) => {
+  if (
+    !$("modal").open &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.target.closest("input, select, textarea, [contenteditable=true]")
+  ) {
+    if (event.key.toLowerCase() === "h" && !event.repeat) {
+      event.preventDefault();
+      showHint();
+    }
+    if (event.key === "Escape" && hintResult && !hintDismissed) {
+      event.preventDefault();
+      dismissHint();
+    }
+  }
   if (
     !loading &&
     game &&
@@ -684,3 +874,5 @@ document.addEventListener("keydown", (event) => {
   }
 });
 render();
+
+matchMedia("(max-width:639px)").addEventListener("change", () => renderHint());

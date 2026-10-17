@@ -13,6 +13,65 @@
       this.history = [];
       this.moves = 0;
       this.started = Date.now();
+      this.hintProof = null;
+      this.resetHints();
+    }
+    resetHints() {
+      this.hintCursor = 0;
+      this.currentHint = null;
+    }
+    // Only trace-derived domains are consulted. No hidden answer, placement,
+    // mark, history, score, move count or timer is readjusted by this method.
+    hint(advance = true) {
+      if (!this.hintProof) this.hintProof = E.propagate(this.puzzle);
+      const proof = this.hintProof,
+        conflicts = this.conflicts();
+      const bad = this.positions.flatMap((cell, person) =>
+        cell >= 0 && !proof.domains[person].includes(cell) ? [cell] : [],
+      );
+      for (const cell of this.marks)
+        if (
+          proof.domains.some(
+            (domain) => domain.length === 1 && domain[0] === cell,
+          )
+        )
+          bad.push(cell);
+      if (conflicts.rows.length || conflicts.cols.length || bad.length)
+        return { status: "conflict", cells: [...new Set(bad)] };
+      if (
+        this.positions.every((cell) => cell >= 0) &&
+        E.valid(
+          this.positions,
+          this.puzzle.rooms,
+          this.puzzle.clues,
+          this.puzzle.objects,
+        )
+      )
+        return { status: "solved" };
+      if (!proof.solved) return { status: "unavailable" };
+      if (
+        !advance &&
+        this.currentHint &&
+        (this.currentHint.status === "exhausted" ||
+          this.positions[this.currentHint.step.person] < 0)
+      )
+        return this.currentHint;
+      while (this.hintCursor < proof.trace.length) {
+        const index = this.hintCursor++,
+          step = proof.trace[index];
+        if (this.positions[step.person] >= 0) continue;
+        this.currentHint = {
+          status: "step",
+          step,
+          index,
+          total: proof.trace.length,
+        };
+        return this.currentHint;
+      }
+      return (this.currentHint = {
+        status: "exhausted",
+        total: proof.trace.length,
+      });
     }
     save() {
       this.history.push({
@@ -54,9 +113,11 @@
       if (!previous) return false;
       this.positions = previous.positions;
       this.marks = previous.marks;
+      this.resetHints();
       return true;
     }
     reset() {
+      this.resetHints();
       if (this.positions.some((x) => x >= 0) || this.marks.length) {
         this.save();
         this.positions.fill(-1);

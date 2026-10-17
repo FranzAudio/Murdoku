@@ -969,3 +969,115 @@ body[data-grid-size="7"] .cell {
     bottom: 12px;
   }
 }
+
+:root {
+  --color-hint: #38bdf8;
+  --color-hint-bg: rgba(56, 189, 248, 0.15);
+  --color-hint-glow: rgba(56, 189, 248, 0.4);
+}
+.hint-banner {
+  background: #172338;
+  border: 1px solid var(--color-hint);
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 0 0 16px;
+}
+.hint-header,
+.hint-title-group,
+.hint-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.hint-header {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+.hint-mini-icon {
+  width: 24px;
+  height: 24px;
+}
+#hint-eyebrow {
+  color: var(--color-hint);
+  font-size: 11px;
+  letter-spacing: 1.5px;
+}
+.hint-step-badge {
+  color: var(--color-hint);
+  background: var(--color-hint-bg);
+  font: 700 12px monospace;
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+#hint-text {
+  font: 500 14px/1.4 system-ui;
+  margin: 8px 0;
+}
+#hint-subtext {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+}
+#hint-dismiss {
+  background: transparent;
+  border: 0;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 4px;
+}
+#hint-clue-link,
+#hint-return {
+  color: var(--color-hint);
+  border-color: var(--color-hint);
+}
+.cell.hint-highlight:not(.conflict):not(.hint-conflict) {
+  outline: 3px solid var(--color-hint);
+  outline-offset: -3px;
+  box-shadow:
+    inset 0 0 14px #38bdf859,
+    0 0 12px #38bdf880;
+  animation: hint-pulse 2s ease-in-out infinite;
+}
+.cell.hint-conflict,
+.cell.conflict.hint-highlight {
+  outline: 3px solid var(--color-crimson);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 4px var(--color-crimson);
+  background-color: var(--color-crimson-bg);
+  animation: none;
+}
+.clue.hint-active {
+  border-color: var(--color-hint);
+  background: var(--color-hint-bg);
+  box-shadow: 0 0 8px #38bdf84d;
+  scroll-margin-top: 240px;
+}
+@keyframes hint-pulse {
+  50% {
+    box-shadow:
+      inset 0 0 14px #38bdf859,
+      0 0 6px #38bdf840;
+  }
+}
+@media (max-width: 639px) {
+  #hint-dismiss {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  #hint-clue-link,
+  #hint-return {
+    min-height: 44px;
+  }
+  .toolbar button {
+    min-width: 0;
+    padding: 8px 3px;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cell.hint-highlight {
+    animation: none !important;
+  }
+}

@@ -79,6 +79,11 @@
         <button id="mark" disabled aria-pressed="false">
           <img src="assets/icons/mark-x.png" alt="" /><span></span>
         </button>
+        <button id="hint" disabled aria-keyshortcuts="h">
+          <img src="assets/icons/hint.png" alt="" /><span
+            id="hint-label"
+          ></span>
+        </button>
         <button id="check" disabled>
           <img src="assets/icons/check.png" alt="" /><span></span>
         </button>
@@ -93,6 +98,31 @@
         role="alert"
         aria-live="assertive"
       ></div>
+      <section
+        id="hint-banner"
+        class="hint-banner"
+        role="region"
+        aria-live="polite"
+        hidden
+      >
+        <div class="hint-header">
+          <div class="hint-title-group">
+            <img
+              src="assets/icons/hint.png"
+              class="hint-mini-icon"
+              alt=""
+            /><span id="hint-eyebrow"></span
+            ><span id="hint-step" class="hint-step-badge"></span>
+          </div>
+          <button id="hint-dismiss" type="button">✕</button>
+        </div>
+        <p id="hint-text"></p>
+        <div class="hint-footer">
+          <button id="hint-clue-link"></button
+          ><button id="hint-return" hidden></button
+          ><span id="hint-subtext"></span>
+        </div>
+      </section>
       <div id="reset-confirm" class="confirmation" hidden>
         <p id="reset-question"></p>
         <button id="confirm-reset"></button><button id="cancel-reset"></button>
