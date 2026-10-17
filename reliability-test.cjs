@@ -22,7 +22,7 @@ vm.runInNewContext(
 );
 const table = stale.window.MurdokuStrings,
   ids = [E.buildId, Game.buildId, I.buildId, R.buildId];
-assert.equal(R.buildId, "1.1.1");
+assert.match(R.buildId, /^\d+\.\d+\.\d+$/);
 assert.ok(ids.every((id) => id === R.buildId));
 for (const code of ["en", "it", "es", "ca"]) {
   assert.equal(I.has(code), true);
@@ -106,8 +106,8 @@ try {
     fs.writeFileSync(p, original);
   }
   for (const [f, from, to] of [
-    ["index.html", "?v=1.1.1", "?v=old"],
-    ["index.html", 'data-build="1.1.1"', 'data-build="old"'],
+    ["index.html", `?v=${R.buildId}`, "?v=old"],
+    ["index.html", `data-build="${R.buildId}"`, 'data-build="old"'],
     [
       "reliability.js",
       "Mystery at Blackwood Manor",

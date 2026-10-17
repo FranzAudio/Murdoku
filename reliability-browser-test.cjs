@@ -27,12 +27,12 @@ const R = require("./reliability.js"),
       MurdokuApp.buildId,
       MurdokuReliability.buildId,
     ]);
-    assert.ok(ids.every((id) => id === "1.1.1"));
-    assert.equal(await page.locator("#build-id").textContent(), "1.1.1");
+    assert.ok(ids.every((id) => id === R.buildId));
+    assert.equal(await page.locator("#build-id").textContent(), R.buildId);
     for (const value of await page
       .locator("script[src],link[href],img[src]")
       .evaluateAll((nodes) => nodes.map((n) => n.src || n.href)))
-      assert.equal(new URL(value).searchParams.get("v"), "1.1.1", value);
+      assert.equal(new URL(value).searchParams.get("v"), R.buildId, value);
     await page.locator("#start").click();
     await page.waitForFunction(() => game && !loading);
     for (const code of ["en", "it", "es", "ca"]) {
@@ -50,7 +50,7 @@ const R = require("./reliability.js"),
     assert.ok(
       requests
         .filter((r) => !r.endsWith("/"))
-        .every((r) => new URL(r).searchParams.get("v") === "1.1.1"),
+        .every((r) => new URL(r).searchParams.get("v") === R.buildId),
       requests.join("\n"),
     );
     // A single missing template is handled by English fallback, not a stale warning.
@@ -200,7 +200,7 @@ const R = require("./reliability.js"),
       await offline.locator("#new span").textContent(),
       "Nuevo caso",
     );
-    assert.equal(await offline.locator("#build-id").textContent(), "1.1.1");
+    assert.equal(await offline.locator("#build-id").textContent(), R.buildId);
     console.log(
       "PASS: version queries for every asset, matching IDs/footer, exact historical strings interception, four-locale notice, play/undo/check/hints/focus/state preserved, mismatch/reload and missing-template guards, responsive and versioned file://.",
     );
