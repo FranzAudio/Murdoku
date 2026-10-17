@@ -425,7 +425,7 @@ select {
   /* After the font shorthand, which resets both of these to normal. */
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum" 1;
-  padding-top: 3px;
+  padding-top: 0;
 }
 .clue[aria-pressed="true"] {
   color: var(--color-text-secondary);
