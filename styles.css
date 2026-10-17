@@ -823,3 +823,149 @@ body.loading #clues {
     display: none;
   }
 }
+
+/* Furniture fixtures keep their identity beneath people and elimination marks. */
+.cell {
+  --furniture-size: 36px;
+  --badge-size: 22px;
+  --person-size: 64px;
+  --seal-size: 22px;
+}
+body[data-grid-size="5"] .cell {
+  --furniture-size: 44px;
+  --badge-size: 26px;
+  --person-size: 72px;
+  --seal-size: 24px;
+}
+body[data-grid-size="7"] .cell {
+  --furniture-size: 30px;
+  --badge-size: 18px;
+  --person-size: 54px;
+  --seal-size: 18px;
+}
+.cell .furniture-icon {
+  width: var(--furniture-size);
+  height: var(--furniture-size);
+  max-width: 75%;
+  max-height: 75%;
+  filter: drop-shadow(0 2px 3px #000b);
+}
+.cell .furniture-badge {
+  position: absolute;
+  bottom: 12px;
+  right: 2px;
+  width: var(--badge-size);
+  height: var(--badge-size);
+  background: var(--color-surface-board);
+  border: 1px solid var(--color-border-accent);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow:
+    0 0 0 1px #1a1e27,
+    0 2px 4px #000;
+  z-index: 3;
+}
+.cell .furniture-badge .furniture-icon {
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  padding: 2px;
+}
+.cell .portrait {
+  width: var(--person-size);
+  height: var(--person-size);
+  max-width: 90%;
+  max-height: 90%;
+  z-index: 2;
+}
+.cell .seal {
+  top: 2px;
+  left: 2px;
+  right: auto;
+  width: var(--seal-size);
+  height: var(--seal-size);
+  z-index: 4;
+}
+.cell .cell-name {
+  z-index: 4;
+}
+.cell .x-mark {
+  position: absolute;
+  z-index: 5;
+  opacity: 0.85;
+}
+.clue-object {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  background: var(--color-surface-board);
+  border: 1px solid var(--color-border-accent);
+  border-radius: 4px;
+}
+.clue[aria-pressed="true"] .clue-number {
+  color: var(--color-success);
+}
+.filters {
+  flex-wrap: wrap;
+}
+.room-fixtures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+.room-fixtures img {
+  width: 20px;
+  height: 20px;
+}
+#furniture-title {
+  margin: 20px 0 12px;
+}
+#furniture-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.furniture-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+.furniture-legend-item img {
+  width: 24px;
+  height: 24px;
+}
+@media (min-width: 640px) and (max-width: 1024px) {
+  body[data-grid-size] .cell {
+    --furniture-size: 32px;
+    --badge-size: 20px;
+    --person-size: 56px;
+    --seal-size: 20px;
+  }
+}
+@media (max-width: 639px) {
+  body[data-grid-size="5"] .cell {
+    --furniture-size: 28px;
+    --badge-size: 18px;
+    --person-size: 48px;
+    --seal-size: 18px;
+  }
+  body[data-grid-size="6"] .cell {
+    --furniture-size: 24px;
+    --badge-size: 16px;
+    --person-size: 42px;
+    --seal-size: 16px;
+  }
+  body[data-grid-size="7"] .cell {
+    --furniture-size: 20px;
+    --badge-size: 14px;
+    --person-size: 36px;
+    --seal-size: 14px;
+  }
+  .cell .furniture-badge {
+    bottom: 12px;
+  }
+}

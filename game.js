@@ -87,14 +87,35 @@
         (x, i) => x >= 0 && x !== this.puzzle.solution[i],
       ).length;
       const contradicted = this.puzzle.clues.filter((c) => {
+        if (c.type === "object" && c.relation === "only_person") {
+          const object = this.puzzle.objects.find((o) => o.id === c.object);
+          const room = this.puzzle.rooms[object.cell];
+          return this.positions.some(
+            (cell, person) =>
+              cell >= 0 &&
+              (person === c.a
+                ? this.puzzle.rooms[cell] !== room
+                : this.puzzle.rooms[cell] === room),
+          );
+        }
         if (c.type === "count" && placed < this.size) return false;
         if (c.a !== undefined && this.positions[c.a] < 0) return false;
         if (c.b !== undefined && this.positions[c.b] < 0) return false;
-        return !E.clueTrue(c, this.positions, this.puzzle.rooms);
+        return !E.clueTrue(
+          c,
+          this.positions,
+          this.puzzle.rooms,
+          this.puzzle.objects,
+        );
       }).length;
       const solved =
         placed === this.size &&
-        E.valid(this.positions, this.puzzle.rooms, this.puzzle.clues);
+        E.valid(
+          this.positions,
+          this.puzzle.rooms,
+          this.puzzle.clues,
+          this.puzzle.objects,
+        );
       const murderer = solved
         ? this.positions.findIndex(
             (x, i) =>

@@ -63,6 +63,149 @@
           : Math.abs(row(x) - row(cell)) + Math.abs(col(x) - col(cell)) === 1),
     );
   }
+  const OBJECT_TYPES = [
+    "desk",
+    "table",
+    "fireplace",
+    "chair",
+    "piano",
+    "billiards",
+  ];
+  const OBJECT_RELATIONS = [
+    "sitting_on",
+    "standing_on",
+    "beside",
+    "south_of",
+    "avoids",
+    "only_person",
+  ];
+  function fixturesValid(objects, rooms) {
+    return (
+      Array.isArray(objects) &&
+      new Set(objects.map((o) => o.id)).size === objects.length &&
+      new Set(objects.map((o) => o.cell)).size === objects.length &&
+      objects.every(
+        (o) =>
+          OBJECT_TYPES.includes(o.type) &&
+          o.id === o.type &&
+          Number.isInteger(o.cell) &&
+          o.cell >= 0 &&
+          o.cell < rooms.length,
+      )
+    );
+  }
+  // only_person decomposes exactly into membership for the named person and
+  // exclusion from that room for everyone else. All are forward unary deductions.
+  function objectCandidate(clue, person, cell, rooms, objects) {
+    const object = objects.find((o) => o.id === clue.object);
+    if (!object || !OBJECT_RELATIONS.includes(clue.relation)) return false;
+    if (clue.relation === "only_person")
+      return person === clue.a
+        ? rooms[cell] === rooms[object.cell]
+        : rooms[cell] !== rooms[object.cell];
+    if (person !== clue.a) return true;
+    const N = Math.sqrt(rooms.length);
+    switch (clue.relation) {
+      case "sitting_on":
+      case "standing_on":
+        return cell === object.cell;
+      case "beside":
+        return (
+          Math.abs(row(cell, N) - row(object.cell, N)) +
+            Math.abs(col(cell, N) - col(object.cell, N)) ===
+          1
+        );
+      case "south_of":
+        return row(cell, N) > row(object.cell, N);
+      case "avoids":
+        return cell !== object.cell;
+      default:
+        return false;
+    }
+  }
+  function placeObjects(solution, rooms, N, random) {
+    const choose = (a) => a[Math.floor(random() * a.length)];
+    const singles = indices(N).filter(
+      (a) =>
+        row(solution[a], N) < N - 1 &&
+        solution.filter((x) => rooms[x] === rooms[solution[a]]).length === 1,
+    );
+    if (!singles.length) return null;
+    const anchor = choose(singles),
+      objects = [],
+      available = [...OBJECT_TYPES];
+    const affiliations = {
+      desk: [0],
+      table: [1, 6],
+      fireplace: [1, 3],
+      chair: [0, 3],
+      piano: [3, 5],
+      billiards: [4],
+    };
+    function add(cell) {
+      const preferred = available.filter((type) =>
+        affiliations[type].includes(rooms[cell]),
+      );
+      const type = choose(preferred.length ? preferred : available);
+      available.splice(available.indexOf(type), 1);
+      const object = { id: type, type, cell };
+      objects.push(object);
+      return object;
+    }
+    const on = add(solution[anchor]);
+    const adjacentCells = indices(N * N).filter(
+      (cell) =>
+        cell !== on.cell &&
+        solution.some(
+          (x) =>
+            Math.abs(row(x, N) - row(cell, N)) +
+              Math.abs(col(x, N) - col(cell, N)) ===
+            1,
+        ),
+    );
+    const adjacent = add(choose(adjacentCells));
+    const count =
+      N === 5
+        ? 2 + Math.floor(random() * 2)
+        : 3 + Math.floor(random() * (N === 6 ? 2 : 3));
+    while (objects.length < count)
+      add(
+        choose(
+          indices(N * N).filter((cell) =>
+            objects.every((o) => o.cell !== cell),
+          ),
+        ),
+      );
+    const besidePerson = choose(
+      indices(N).filter(
+        (a) =>
+          Math.abs(row(solution[a], N) - row(adjacent.cell, N)) +
+            Math.abs(col(solution[a], N) - col(adjacent.cell, N)) ===
+          1,
+      ),
+    );
+    const southPerson = choose(
+      indices(N).filter((a) => row(solution[a], N) > row(on.cell, N)),
+    );
+    const avoidObject = choose(objects),
+      avoidPerson = choose(
+        indices(N).filter((a) => solution[a] !== avoidObject.cell),
+      );
+    const clue = (relation, a, object) => ({
+      type: "object",
+      relation,
+      a,
+      object: object.id,
+    });
+    const clues = [
+      clue(random() < 0.5 ? "sitting_on" : "standing_on", anchor, on),
+      clue("beside", besidePerson, adjacent),
+      clue("south_of", southPerson, on),
+      clue("avoids", avoidPerson, avoidObject),
+      clue("only_person", anchor, on),
+    ];
+    return { objects, clues };
+  }
   function unary(clue, cell, rooms) {
     if (clue.type === "room") return rooms[cell] === clue.room;
     if (clue.type === "beside" || clue.type === "touch")
@@ -72,7 +215,19 @@
   function direction(a, b, axis, N) {
     return axis === "north" ? row(a, N) < row(b, N) : col(a, N) < col(b, N);
   }
-  function clueTrue(clue, positions, rooms) {
+  function clueTrue(clue, positions, rooms, objects = []) {
+    if (clue.type === "object") {
+      if (!Number.isInteger(clue.a) || clue.a < 0 || clue.a >= positions.length)
+        return false;
+      if (!objectCandidate(clue, clue.a, positions[clue.a], rooms, objects))
+        return false;
+      if (clue.relation !== "only_person") return true;
+      const object = objects.find((o) => o.id === clue.object);
+      return (
+        positions.filter((cell) => rooms[cell] === rooms[object.cell])
+          .length === 1
+      );
+    }
     if (clue.type === "direction")
       return direction(
         positions[clue.a],
@@ -87,16 +242,17 @@
       );
     return unary(clue, positions[clue.a], rooms);
   }
-  function valid(positions, rooms, clues = []) {
+  function valid(positions, rooms, clues = [], objects = []) {
     const N = Math.sqrt(rooms.length);
     return (
       SUPPORTED_SIZES.includes(N) &&
+      fixturesValid(objects, rooms) &&
       positions.length === N &&
       positions.every((x) => Number.isInteger(x) && x >= 0 && x < N * N) &&
       new Set(positions.map((x) => row(x, N))).size === N &&
       new Set(positions.map((x) => col(x, N))).size === N &&
       positions.filter((x) => rooms[x] === rooms[positions[0]]).length === 2 &&
-      clues.every((c) => clueTrue(c, positions, rooms))
+      clues.every((c) => clueTrue(c, positions, rooms, objects))
     );
   }
   function initialDomains(puzzle) {
@@ -104,9 +260,10 @@
       cells = indices(N * N);
     return Array.from({ length: N }, (_, a) =>
       cells.filter((x) =>
-        puzzle.clues.every(
-          (c) =>
-            c.a !== a || c.type === "direction" || unary(c, x, puzzle.rooms),
+        puzzle.clues.every((c) =>
+          c.type === "object"
+            ? objectCandidate(c, a, x, puzzle.rooms, puzzle.objects ?? [])
+            : c.a !== a || c.type === "direction" || unary(c, x, puzzle.rooms),
         ),
       ),
     );
@@ -151,7 +308,7 @@
       trace,
       solved:
         domains.every((d) => d.length === 1) &&
-        valid(solution, puzzle.rooms, puzzle.clues),
+        valid(solution, puzzle.rooms, puzzle.clues, puzzle.objects),
       solution,
     };
   }
@@ -167,7 +324,7 @@
     function visit(depth, rows, cols) {
       if (solutions.length >= limit) return;
       if (depth === N) {
-        if (valid(positions, puzzle.rooms, puzzle.clues))
+        if (valid(positions, puzzle.rooms, puzzle.clues, puzzle.objects))
           solutions.push([...positions]);
         return;
       }
@@ -193,7 +350,7 @@
     const deductions = propagate(puzzle),
       solutions = enumerate(puzzle);
     return {
-      valid: valid(puzzle.solution, puzzle.rooms, puzzle.clues),
+      valid: valid(puzzle.solution, puzzle.rooms, puzzle.clues, puzzle.objects),
       unique:
         solutions.length === 1 &&
         solutions[0].every((x, i) => x === puzzle.solution[i]),
@@ -226,6 +383,8 @@
           random,
         ),
       ];
+      const fixtures = placeObjects(solution, rooms, N, random);
+      if (!fixtures) continue;
       const clues = solution.map((x, a) => ({
         type: "room",
         a,
@@ -257,12 +416,21 @@
         count:
           new Set(rooms).size - new Set(solution.map((x) => rooms[x])).size,
       });
-      const puzzle = { size, seed: seed >>> 0, rooms, solution, clues };
+      clues.push(...fixtures.clues);
+      const puzzle = {
+        size,
+        seed: seed >>> 0,
+        rooms,
+        solution,
+        clues,
+        objects: fixtures.objects,
+      };
       // Keep room and vocabulary clues; remove redundant directional clues only when deduction still finishes.
       for (const clue of shuffle(
         clues.filter((c) => c.type === "direction"),
         random,
       )) {
+        if (clues.filter((c) => c.type === "direction").length === 1) break;
         const index = clues.indexOf(clue);
         clues.splice(index, 1);
         if (!propagate(puzzle).solved) clues.splice(index, 0, clue);

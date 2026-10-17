@@ -1,6 +1,6 @@
 # Murdoku
 
-A static, client-side deduction game for stories 001 and 005. Open `index.html` directly, or run `python3 -m http.server 8000` in this directory and open http://localhost:8000. No install, build, backend, CDN, or external service is required. Italian is the default; choose English in the header.
+A static, client-side deduction game for stories 001, 005 and 006. Open `index.html` directly, or run `python3 -m http.server 8000` in this directory and open http://localhost:8000. No install, build, backend, CDN, or external service is required. Italian is the default; choose English in the header.
 
 ## Verification
 
@@ -39,3 +39,23 @@ Run `node self-test.cjs 500` for 500 cases **per size**. Every emitted case uses
 `size-browser-test.cjs` checks the size selector and safety confirmation, keyboard 1..N and ignored out-of-range numbers, 7×7 completion, size-specific failure/retry/fallback, responsive layout and keyboard radio navigation. Run with the same optional Playwright setup as `browser-test.cjs` against a local static server.
 
 **DEC-005-1 (optional extension deferred):** This assignment implements the approved primary set {5,6,7}. 8×8 is outside this implementation, remains unsupported by the engine/selector, and has not been verified. `suspect-7.png` is bundled unchanged as the Designer's future expansion asset. No required story-005 AC is dropped. Difficulty tiers and publication of this change are separate work.
+
+## Furniture and object clues (story-006)
+
+Cases include fixed cell fixtures using the six bundled desk, dining table, fireplace, armchair, piano and billiards icons. Counts are 2–3 at 5×5, 3–4 at 6×6 and 3–5 at 7×7. A cell contains at most one fixture, and each named fixture type appears at most once per case so clues are unambiguous. A person may occupy a fixture's cell. Objects favor their natural room affiliations from the UI table when available; other available types are allowed when no affinity matches. Objects remain fixed through placement, X marks, undo and reset.
+
+A puzzle's `objects` array contains `{id, type, cell}` records. Object clues are `{type: "object", relation, a, object}` with a person index `a` and a visible fixture's `id`. Relations have these exact meanings:
+
+- `sitting_on` and `standing_on`: person cell equals fixture cell.
+- `beside`: absolute row difference plus absolute column difference equals one. Diagonal contact and wrapping across a row edge do not count.
+- `south_of`: person row is strictly greater than fixture row; column alignment is unnecessary.
+- `avoids`: person cell differs from fixture cell.
+- `only_person`: the fixture's room contains exactly one person, who is the named person. It decomposes into room membership for that person and exclusion from that room for every other person, so it supports forward-only deduction. Partial Check flags another person in that room even before the named person is placed.
+
+Every case emits five object clues (one on variant plus beside, south, avoids and only-person), while retaining room, direction, room adjacency, diagonal room contact and empty-room count clues. Both on variants occur across cases. The original emission gate still evaluates all clues, validates fixture records and both manor rules, independently enumerates all satisfying assignments with safe pruning, and requires a forward-only solve. A failed candidate is discarded. No uniqueness sampling or AC relaxation is used.
+
+`clueTrue(clue, positions, rooms, objects)` and `valid(positions, rooms, clues, objects)` accept fixtures as their fourth argument. Existing non-object cases remain compatible when that argument is omitted. The propagator/enumerator read `puzzle.objects` directly. Neither solver uses the hidden answer.
+
+Run `node self-test.cjs 500` for 500 cases per size, six object relation truth tables checked against an independent semantic oracle, visible references, fixture counts/uniqueness, negative fixtures, partial only-person contradictions, full solution enumeration and forward deduction. The independent complete 5×5/6×6/7×7 assignment cross-checks include object clues. `object-browser-test.cjs` verifies empty/occupied/victim/X layering, non-overlapping victim seal and furniture badge, fixed fixtures after Undo/Reset, bilingual object copy and accessible labels, swatches/filter/scratchpad, wrong object placement feedback and correct completion at every size and at desktop/tablet/mobile widths. It uses the same optional Playwright setup as the other browser suites. Run the existing two browser suites as regressions.
+
+All six furniture assets are reused unchanged. No new runtime dependency, asset fetch service, layout mode or persistence is added. No required story-006 AC is deferred. Designer review and PM acceptance use the final verified commit as recorded on the task board.

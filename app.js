@@ -12,7 +12,6 @@ const textures = [
   "kitchen",
   "cellar",
 ];
-const furniture = ["desk", "table", "fireplace", "chair", "billiards", "piano"];
 let locale = "it",
   game = null,
   selected = 0,
@@ -47,6 +46,14 @@ function portrait(person) {
   );
 }
 function clueText(clue) {
+  if (clue.type === "object") {
+    const object = game.puzzle.objects.find((o) => o.id === clue.object);
+    return format(s().objectClues[clue.relation], {
+      name: s().names[clue.a],
+      object: s().objectNames[object.type],
+      on: s().objectOn[object.type],
+    });
+  }
   const t = s(),
     values = {
       name: t.names[clue.a],
@@ -104,8 +111,24 @@ function renderBoard(focusCell) {
           : Math.floor(r / Math.ceil(size / 2)) * 2 +
             Math.floor(c / Math.ceil(size / 2)),
         person = game ? game.occupant(cell) : -1;
+      const object = game?.puzzle.objects?.find((o) => o.cell === cell);
       const button = document.createElement("button");
       button.className = "cell";
+      if (object) {
+        button.dataset.object = object.id;
+        const icon = image(
+          "icons/furniture-" + object.type,
+          "",
+          "furniture-icon",
+        );
+        icon.setAttribute("aria-hidden", "true");
+        if (person >= 0) {
+          const badge = document.createElement("span");
+          badge.className = "furniture-badge";
+          badge.append(icon);
+          button.append(badge);
+        } else button.append(icon);
+      }
       button.dataset.cell = cell;
       button.setAttribute("role", "gridcell");
       button.tabIndex = cell === (focusCell ?? 0) ? 0 : -1;
@@ -139,13 +162,19 @@ function renderBoard(focusCell) {
         button.append(image("icons/mark-x", "X", "x-mark"));
       const state =
         person >= 0
-          ? t.names[person]
+          ? format(t.cellOccupied, { name: t.names[person] }) +
+            (person === 0 ? ", " + t.victim : "") +
+            (object
+              ? " (" +
+                format(t.cellOn, { object: t.objectNames[object.type] }) +
+                ")"
+              : "")
           : game?.marks.includes(cell)
             ? t.markCell
             : t.empty;
       button.setAttribute(
         "aria-label",
-        `${coord(cell)}, ${t.roomNames[room]}, ${state}`,
+        `${coord(cell)}, ${t.roomNames[room]}, ${object ? t.objectNames[object.type] + ", " : ""}${state}`,
       );
       button.title = button.getAttribute("aria-label");
       button.addEventListener("click", () => action(cell));
@@ -239,14 +268,19 @@ function renderClues() {
     .map((clue, index) => ({ clue, index }))
     .sort(
       (a, b) =>
-        ["room", "direction", "beside", "touch", "count"].indexOf(a.clue.type) -
-        ["room", "direction", "beside", "touch", "count"].indexOf(b.clue.type),
+        ["room", "direction", "beside", "touch", "object", "count"].indexOf(
+          a.clue.type,
+        ) -
+        ["room", "direction", "beside", "touch", "object", "count"].indexOf(
+          b.clue.type,
+        ),
     );
   for (const { clue, index } of clues) {
     if (
       (filter === "room" && clue.type !== "room") ||
       (filter === "position" &&
-        !["direction", "beside", "touch"].includes(clue.type))
+        !["direction", "beside", "touch"].includes(clue.type)) ||
+      (filter === "object" && clue.type !== "object")
     )
       continue;
     const category = t.categories[clue.type === "touch" ? "beside" : clue.type];
@@ -269,7 +303,14 @@ function renderClues() {
       : String(index + 1).padStart(2, "0");
     const text = document.createElement("span");
     text.textContent = clueText(clue);
-    button.append(number, text);
+    button.append(number);
+    if (clue.type === "object") {
+      const object = game.puzzle.objects.find((o) => o.id === clue.object);
+      const swatch = image("icons/furniture-" + object.type, "", "clue-object");
+      swatch.setAttribute("aria-hidden", "true");
+      button.append(swatch);
+    }
+    button.append(text);
     button.disabled = loading;
     button.addEventListener("click", () => {
       if (resolved.has(index)) resolved.delete(index);
@@ -282,15 +323,37 @@ function renderClues() {
 }
 function renderLegend() {
   $("legend").replaceChildren();
+  $("furniture-legend").replaceChildren();
   if (!game) return;
+  for (const object of game.puzzle.objects ?? []) {
+    const item = document.createElement("div");
+    item.className = "furniture-legend-item";
+    item.append(
+      image("icons/furniture-" + object.type, ""),
+      document.createTextNode(
+        s().objectNames[object.type] + " · " + coord(object.cell),
+      ),
+    );
+    $("furniture-legend").append(item);
+  }
   for (const room of [...new Set(game.puzzle.rooms)].sort((a, b) => a - b)) {
     const item = document.createElement("div");
     item.className = "legend-item";
     const swatch = document.createElement("span");
     swatch.className = "swatch";
     swatch.style.backgroundImage = `url(assets/rooms/${textures[room]}.png)`;
-    if (room < 6) swatch.append(image("icons/furniture-" + furniture[room]));
-    item.append(swatch, document.createTextNode(s().roomNames[room]));
+    const fixtures = document.createElement("span");
+    fixtures.className = "room-fixtures";
+    for (const object of game.puzzle.objects ?? [])
+      if (game.puzzle.rooms[object.cell] === room) {
+        const icon = image(
+          "icons/furniture-" + object.type,
+          s().objectNames[object.type],
+        );
+        icon.title = s().objectNames[object.type] + " · " + coord(object.cell);
+        fixtures.append(icon);
+      }
+    item.append(swatch, document.createTextNode(s().roomNames[room]), fixtures);
     $("legend").append(item);
   }
 }
@@ -346,6 +409,7 @@ function render() {
     "toggle-dossier": "dossierToggle",
     "dossier-label": "dossier",
     "rooms-title": "rooms",
+    "furniture-title": "furnitureTitle",
     instructions: "instructions",
     rules: "rules",
     "reset-question": "resetQuestion",
@@ -363,7 +427,9 @@ function render() {
           ? "all"
           : b.dataset.filter === "room"
             ? "roomFilter"
-            : "position"
+            : b.dataset.filter === "object"
+              ? "objectFilter"
+              : "position"
       ];
   for (const key of ["board", "clues"])
     $(key + "-tab").setAttribute("aria-pressed", String(key === view));
@@ -426,7 +492,11 @@ function newCase(nextSize = size) {
   document.body.classList.add("loading");
   $("reset-confirm").hidden = true;
   render();
-  showModal("loading", format(s().generating, { size }), s().verifying);
+  showModal(
+    "loading",
+    s().furnitureGenerating,
+    format(s().generating, { size }) + " " + s().verifying,
+  );
   setTimeout(() => {
     try {
       const random = new Uint32Array(1);
@@ -444,7 +514,7 @@ function newCase(nextSize = size) {
       modalKind = "";
     } catch (error) {
       console.error(error);
-      showModal("error", format(s().sizeError, { size }), "");
+      showModal("error", format(s().sizeError, { size }), s().furnitureError);
     } finally {
       loading = false;
       document.body.classList.remove("loading");

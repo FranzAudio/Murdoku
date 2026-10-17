@@ -2,6 +2,33 @@
 const assert = require("node:assert/strict"),
   E = require("./engine.js"),
   Game = require("./game.js");
+function objectTruth(clue, positions, puzzle) {
+  const object = puzzle.objects.find((o) => o.id === clue.object),
+    cell = positions[clue.a],
+    N = puzzle.size;
+  if (!object) return false;
+  const dr = Math.floor(cell / N) - Math.floor(object.cell / N),
+    dc = (cell % N) - (object.cell % N);
+  switch (clue.relation) {
+    case "sitting_on":
+    case "standing_on":
+      return cell === object.cell;
+    case "beside":
+      return Math.abs(dr) + Math.abs(dc) === 1;
+    case "south_of":
+      return dr > 0;
+    case "avoids":
+      return cell !== object.cell;
+    case "only_person":
+      return (
+        puzzle.rooms[cell] === puzzle.rooms[object.cell] &&
+        positions.filter((x) => puzzle.rooms[x] === puzzle.rooms[object.cell])
+          .length === 1
+      );
+    default:
+      return false;
+  }
+}
 const started = Date.now(),
   cases = Number(process.argv[2] || 100);
 const permutations = (a) =>
@@ -12,6 +39,8 @@ const permutations = (a) =>
     : [[]];
 for (const size of [5, 6, 7]) {
   const fingerprints = new Set(),
+    relations = new Set(),
+    objectTypes = new Set(),
     times = [];
   for (let seed = 0; seed < cases; seed++) {
     const start = performance.now(),
@@ -52,8 +81,51 @@ for (const size of [5, 6, 7]) {
     }
     for (const type of ["room", "direction", "beside", "touch", "count"])
       assert.ok(p.clues.some((c) => c.type === type));
-    assert.ok(p.clues.every((c) => E.clueTrue(c, p.solution, p.rooms)));
-    const publicCase = { size, rooms: p.rooms, clues: p.clues };
+    assert.ok(
+      p.clues.every((c) => E.clueTrue(c, p.solution, p.rooms, p.objects)),
+    );
+    const minimum = size === 5 ? 2 : 3,
+      maximum = size === 5 ? 3 : size === 6 ? 4 : 5;
+    assert.ok(p.objects.length >= minimum && p.objects.length <= maximum);
+    assert.equal(new Set(p.objects.map((o) => o.cell)).size, p.objects.length);
+    assert.equal(new Set(p.objects.map((o) => o.id)).size, p.objects.length);
+    assert.ok(
+      p.objects.every(
+        (o) => Number.isInteger(o.cell) && o.cell >= 0 && o.cell < size * size,
+      ),
+    );
+    for (const object of p.objects) {
+      assert.ok(
+        ["desk", "table", "fireplace", "chair", "piano", "billiards"].includes(
+          object.type,
+        ),
+      );
+      objectTypes.add(object.type);
+    }
+    const objectClues = p.clues.filter((c) => c.type === "object");
+    assert.equal(objectClues.length, 5);
+    for (const clue of objectClues) {
+      relations.add(clue.relation);
+      assert.ok(p.objects.some((o) => o.id === clue.object));
+      assert.ok(objectTruth(clue, p.solution, p));
+      // Independent semantic oracle over every possible target cell, including
+      // false candidates, catches diagonal/wrapping/equality/off-by-one mistakes.
+      for (let cell = 0; cell < size * size; cell++) {
+        const positions = [...p.solution];
+        positions[clue.a] = cell;
+        assert.equal(
+          E.clueTrue(clue, positions, p.rooms, p.objects),
+          objectTruth(clue, positions, p),
+          `${size} ${clue.relation} ${cell}`,
+        );
+      }
+    }
+    const publicCase = {
+      size,
+      rooms: p.rooms,
+      clues: p.clues,
+      objects: p.objects,
+    };
     assert.deepEqual(
       E.enumerate(publicCase),
       [p.solution],
@@ -63,7 +135,7 @@ for (const size of [5, 6, 7]) {
     assert.ok(deduction.solved);
     assert.deepEqual(deduction.solution, p.solution);
     assert.ok(deduction.trace.length);
-    fingerprints.add(JSON.stringify([p.rooms, p.solution]));
+    fingerprints.add(JSON.stringify([p.rooms, p.solution, p.objects]));
     if (seed === 0) {
       // Independently visit every pair of row/column permutations. Cheap room tests
       // reject assignments before evaluating the complete rules and clue vocabulary.
@@ -81,7 +153,7 @@ for (const size of [5, 6, 7]) {
           )
             continue;
           const positions = rows.map((r, i) => r * size + cols[i]);
-          if (E.valid(positions, p.rooms, p.clues)) solutions++;
+          if (E.valid(positions, p.rooms, p.clues, p.objects)) solutions++;
         }
       assert.equal(solutions, 1);
       console.log(
@@ -90,8 +162,64 @@ for (const size of [5, 6, 7]) {
     }
   }
   assert.equal(fingerprints.size, cases, "seed variation");
+  for (const relation of [
+    "sitting_on",
+    "standing_on",
+    "beside",
+    "south_of",
+    "avoids",
+    "only_person",
+  ])
+    assert.ok(relations.has(relation), `missing ${relation} at ${size}`);
+  assert.equal(objectTypes.size, 6, "all six furniture assets covered");
   const p = E.generate(99, 100, size),
     g = new Game(p);
+  const only = p.clues.find(
+      (c) => c.type === "object" && c.relation === "only_person",
+    ),
+    fixture = p.objects.find((o) => o.id === only.object),
+    other = (only.a + 1) % size;
+  const duplicate = [...p.solution];
+  duplicate[other] = fixture.cell;
+  assert.equal(
+    E.clueTrue(only, duplicate, p.rooms, p.objects),
+    false,
+    "only-person forbids a second room occupant",
+  );
+  const victimCells = p.rooms
+    .map((room, cell) => (room === p.rooms[p.solution[0]] ? cell : -1))
+    .filter((cell) => cell >= 0);
+  const baseClues = p.clues.filter((c) => c.type !== "object");
+  assert.ok(
+    E.valid(p.solution, p.rooms, baseClues, [
+      { id: "chair", type: "chair", cell: p.solution[0] },
+    ]),
+    "fixture can share victim cell",
+  );
+  assert.ok(
+    E.valid(p.solution, p.rooms, baseClues, [
+      { id: "chair", type: "chair", cell: victimCells[0] },
+      { id: "desk", type: "desk", cell: victimCells[1] },
+    ]),
+    "multiple fixtures can share a room",
+  );
+  const partial = new Game({ ...p, clues: [only] });
+  partial.act(fixture.cell, other);
+  assert.equal(
+    partial.check().clues,
+    1,
+    "only-person catches other occupant before named person is placed",
+  );
+  partial.undo();
+  assert.equal(partial.check().clues, 0);
+  const badReference = { ...p, clues: [{ ...only, object: "missing" }] };
+  assert.equal(E.enumerate(badReference).length, 0);
+  assert.equal(E.propagate(badReference).solved, false);
+  assert.equal(
+    E.verify({ ...p, objects: [...p.objects, p.objects[0]] }).valid,
+    false,
+    "duplicate fixture cells/IDs rejected",
+  );
   assert.equal(g.positions.length, size);
   assert.equal(g.check().missing, size);
   g.act(0, 0);
@@ -146,5 +274,5 @@ assert.throws(() => E.generate(0, 100, 8), /UNSUPPORTED_SIZE/);
 assert.equal(E.row(48, 7), 6);
 assert.equal(E.col(48, 7), 6);
 console.log(
-  `PASS: all sizes, rules/clues, exhaustive uniqueness, forward-only deduction, independent full enumeration, room ranges/connectivity, default, invalid size, reproducibility, variation and game actions; ${Date.now() - started}ms.`,
+  `PASS: all sizes, objects and six relation truth tables, rules/clues, exhaustive uniqueness, forward-only deduction, independent full enumeration, room ranges/connectivity, default, invalid size, reproducibility, variation and game actions; ${Date.now() - started}ms.`,
 );
