@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="it">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#12151B"><title>Murdoku</title><link rel="stylesheet" href="styles.css"><script defer src="engine.js"></script><script defer src="game.js"></script><script defer src="strings.js"></script><script defer src="app.js"></script></head>
+<body>
+<header class="masthead"><div class="brand"><span class="manor" aria-hidden="true">♜</span><div><p class="eyebrow">BLACKWOOD MANOR · EST. 1886</p><h1>Murdoku</h1><p id="subtitle"></p></div></div><label class="language"><span id="language-label">Lingua</span><select id="language" aria-label="Lingua / Language"><option value="it">Italiano</option><option value="en">English</option></select></label></header>
+<main>
+<nav id="toolbar" class="toolbar" aria-label="Game controls">
+<button id="new" class="primary"><img src="assets/icons/new-case.png" alt=""><span></span></button>
+<button id="undo" disabled><img src="assets/icons/undo.png" alt=""><span></span></button>
+<button id="reset" disabled><img src="assets/icons/reset.png" alt=""><span></span></button>
+<button id="mark" disabled aria-pressed="false"><img src="assets/icons/mark-x.png" alt=""><span></span></button>
+<button id="check" disabled><img src="assets/icons/check.png" alt=""><span></span></button>
+</nav>
+<div class="case-bar"><span id="case-label"></span><span id="counter"></span></div>
+<div id="feedback" role="status" aria-live="polite"></div><div id="conflicts" class="sr-only" role="alert" aria-live="assertive"></div>
+<div id="reset-confirm" class="confirmation" hidden><p id="reset-question"></p><button id="confirm-reset"></button><button id="cancel-reset"></button></div>
+<nav class="view-tabs" aria-label="View"><button id="board-tab" aria-pressed="true"></button><button id="clues-tab" aria-pressed="false"></button></nav>
+<div class="game-layout">
+<section id="board-panel" class="board-panel">
+<div class="board-wrap"><div id="board" class="board" role="grid" aria-label="Murdoku"></div><div id="welcome" class="welcome"><p class="eyebrow">VILLA BLACKWOOD</p><h2 id="welcome-title"></h2><p id="welcome-text"></p><button id="start" class="primary"></button></div></div>
+<section class="tray-section"><h2 id="tray-title"></h2><div id="tray" class="tray" role="listbox" aria-label="People"></div></section>
+<p id="instructions" class="instructions"></p>
+</section>
+<aside id="dossier"><div class="dossier-heading"><p class="eyebrow" id="dossier-label"></p><h2 id="clues-title"></h2></div><p id="rules" class="rules"></p><div class="filters"><button data-filter="all" aria-pressed="true"></button><button data-filter="room" aria-pressed="false"></button><button data-filter="position" aria-pressed="false"></button></div><div id="clues"></div><section class="room-key"><h3 id="rooms-title"></h3><div id="legend"></div></section></aside>
+</div>
+<footer><span>MURDOKU</span><span id="footer-copy"></span></footer>
+</main>
+<dialog id="modal" aria-labelledby="modal-title"><div id="modal-symbol" aria-hidden="true">⌕</div><h2 id="modal-title"></h2><p id="modal-body"></p><p id="modal-detail"></p><div class="modal-actions"><button id="modal-primary" class="primary"></button><button id="modal-close"></button></div></dialog>
+<noscript>Attiva JavaScript per giocare. Enable JavaScript to play.</noscript>
+</body></html>

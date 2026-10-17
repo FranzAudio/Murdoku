@@ -1,0 +1,7 @@
+.DS_Store
+.recovery/
+data/
+Test Team/
+__pycache__/
+*.pyc
+node_modules/
