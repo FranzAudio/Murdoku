@@ -126,6 +126,10 @@ const assert = require("node:assert/strict");
     await page.locator("#board-tab").getAttribute("aria-pressed"),
     "true",
   );
+  // A generated room can introduce a new image URL over a real network.
+  await page.waitForFunction(() =>
+    [...document.images].every(image => image.complete && image.naturalWidth > 0),
+  );
   assert.ok(
     await page
       .locator("img")
