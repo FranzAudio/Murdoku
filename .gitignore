@@ -5,3 +5,4 @@ Test Team/
 __pycache__/
 *.pyc
 node_modules/
+tasks.json
