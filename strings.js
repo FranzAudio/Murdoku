@@ -80,6 +80,7 @@
       all: "Tutti",
       roomFilter: "Stanze",
       objectFilter: "Oggetti",
+      legendFormat: "{object} · {room} ({coord})",
       furnitureTitle: "Arredi della Villa",
       furnitureGenerating: "Disposizione degli arredi e generazione indizi…",
       furnitureError:
@@ -249,6 +250,7 @@
       all: "All",
       roomFilter: "Rooms",
       objectFilter: "Objects",
+      legendFormat: "{object} · {room} ({coord})",
       furnitureTitle: "Manor Furniture",
       furnitureGenerating: "Placing furniture and generating clues…",
       furnitureError:
@@ -358,6 +360,7 @@
       dossier: "DOCUMENTOS CONFIDENCIALES",
       clues: "Expediente de Pistas",
       rooms: "Habitaciones de la mansión",
+      legendFormat: "{object} · {room} ({coord})",
       furnitureTitle: "Muebles de la Mansión",
       footer: "Deducción pura · Sin cuenta · Todo en tu navegador",
       tray: "Personas de la Mansión ({total})",
@@ -531,6 +534,7 @@
       dossier: "DOCUMENTS CONFIDENCIALS",
       clues: "Dossier de Pistes",
       rooms: "Habitacions de la mansió",
+      legendFormat: "{object} · {room} ({coord})",
       furnitureTitle: "Mobles de la Mansió",
       footer: "Deducció pura · Sense compte · Tot al teu navegador",
       tray: "Persones de la Mansió ({total})",

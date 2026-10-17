@@ -84,9 +84,8 @@ for (const size of [5, 6, 7]) {
     assert.ok(
       p.clues.every((c) => E.clueTrue(c, p.solution, p.rooms, p.objects)),
     );
-    const minimum = size === 5 ? 2 : 3,
-      maximum = size === 5 ? 3 : size === 6 ? 4 : 5;
-    assert.ok(p.objects.length >= minimum && p.objects.length <= maximum);
+    assert.equal(p.objects.length, size - 1, "fixed 4/5/6 furniture density");
+    assert.equal(new Set(p.objects.map((o) => o.type)).size, p.objects.length);
     assert.equal(new Set(p.objects.map((o) => o.cell)).size, p.objects.length);
     assert.equal(new Set(p.objects.map((o) => o.id)).size, p.objects.length);
     assert.ok(

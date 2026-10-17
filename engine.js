@@ -165,10 +165,7 @@
         ),
     );
     const adjacent = add(choose(adjacentCells));
-    const count =
-      N === 5
-        ? 2 + Math.floor(random() * 2)
-        : 3 + Math.floor(random() * (N === 6 ? 2 : 3));
+    const count = N - 1;
     while (objects.length < count)
       add(
         choose(

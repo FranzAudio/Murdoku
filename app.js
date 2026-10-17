@@ -493,7 +493,11 @@ function renderLegend() {
     item.append(
       image("icons/furniture-" + object.type, ""),
       document.createTextNode(
-        s().objectNames[object.type] + " · " + coord(object.cell),
+        format(s().legendFormat, {
+          object: s().objectNames[object.type],
+          room: s().roomNames[game.puzzle.rooms[object.cell]],
+          coord: coord(object.cell),
+        }),
       ),
     );
     $("furniture-legend").append(item);

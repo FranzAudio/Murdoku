@@ -126,6 +126,7 @@ const values = {
   value: "B",
   size: 7,
   cell: "G7",
+  coord: "G7",
   cells: "A1, B2",
 };
 for (const code of ["es", "ca"]) {
